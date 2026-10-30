@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """
 =============================================================================
-YapPNG for DaVinci Resolve (v2.2 Ultra-Optimized Edition)
+YapPNG for DaVinci Resolve (v2.2 Ultra - Universal Free & Studio Edition)
+- Universal Dark GUI (Works on both Free & Studio, bypasses UIManager lock)
 - Vectorized VAD Engine (NumPy Prefix-Sum + Array Fallback)
 - Single-Pass Audio Decoding & In-Memory Slicing
+- Multi-Clip Timeline Audio Aggregation & Frame Sync
 - Pre-Cached Media Pool Item Resolution
 - Batched Timeline Lift & Splice Operations
 - Multi-Character Profiles & Track Routing
@@ -27,6 +29,8 @@ import math
 import struct
 import subprocess
 import array
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
 
 # High-performance NumPy acceleration if available
 try:
@@ -49,15 +53,16 @@ if not bmd_module:
     except ImportError:
         pass
 
-if not fusion_app and bmd_module:
-    try:
-        fusion_app = bmd_module.scriptapp("Fusion")
-    except Exception:
-        pass
-
 if not resolve_app and bmd_module:
     try:
         resolve_app = bmd_module.scriptapp("Resolve")
+    except Exception:
+        pass
+
+if not resolve_app:
+    try:
+        import DaVinciResolveScript as dvr_script
+        resolve_app = dvr_script.scriptapp("Resolve")
     except Exception:
         pass
 
@@ -153,7 +158,8 @@ DEFAULT_CONFIG = {
     "audio_source_type": 0,
     "custom_audio_file": r"F:\Plugin\test_assets\test_voice.wav",
     "range_mode": 0,
-    "overwrite_existing": True
+    "overwrite_existing": True,
+    "stay_on_top": True
 }
 
 PRESETS = {
@@ -276,9 +282,6 @@ def scan_character_folder(folder_path):
 # High-Performance Audio Processing & VAD
 # ---------------------------------------------------------------------------
 def extract_pcm_from_file(file_path, start_sec=0.0, duration_sec=None):
-    """
-    Optimized single-pass FFmpeg extractor skipping video, subtitles, and metadata.
-    """
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Media file not found: {file_path}")
 
@@ -304,9 +307,6 @@ def extract_pcm_from_file(file_path, start_sec=0.0, duration_sec=None):
     return raw_pcm
 
 def compute_frame_db_vectorized(pcm_data, sample_rate, target_fps):
-    """
-    Computes per-frame decibel energy values with ultra-fast vectorized prefix sums.
-    """
     if HAVE_NUMPY:
         samples = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
         total_samples = len(samples)
@@ -326,7 +326,6 @@ def compute_frame_db_vectorized(pcm_data, sample_rate, target_fps):
         db_levels = 20.0 * np.log10((rms / 32767.0) + 1e-9)
         return db_levels
     else:
-        # Standard library array fallback
         samples = array.array('h')
         samples.frombytes(pcm_data)
         total_samples = len(samples)
@@ -388,9 +387,6 @@ def calibrate_noise_floor(pcm_bytes, sample_rate=16000, window_ms=250):
         return noise_db, target_thresh
 
 def classify_frame_states(db_array, threshold_db=-30.0, shout_threshold_db=-12.0, enable_shout=True):
-    """
-    Converts frame decibel levels into integer states (0: silence, 1: talk, 2: shout).
-    """
     total_frames = len(db_array)
     states = [0] * total_frames
     for i in range(total_frames):
@@ -402,9 +398,6 @@ def classify_frame_states(db_array, threshold_db=-30.0, shout_threshold_db=-12.0
     return states
 
 def extract_segments_from_states(states, target_fps, hold_ms=120, min_speech_ms=50):
-    """
-    Applies hold hysteresis and extracts contiguous [TALK / SHOUT] speech intervals.
-    """
     total_frames = len(states)
     if total_frames == 0:
         return []
@@ -456,21 +449,16 @@ def get_media_folder(media_pool, folder_name="PNGtuber Sprites"):
     return new_sub or root_folder
 
 def build_media_cache(media_pool, target_folder, file_paths):
-    """
-    Pre-caches MediaPoolItem objects to eliminate repetitive lookups.
-    """
     cache = {}
     valid_paths = [os.path.abspath(p) for p in file_paths if p and os.path.isfile(p)]
     if not valid_paths:
         return cache
 
-    # Existing clips in folder
     for clip in target_folder.GetClipList():
         p = os.path.abspath(clip.GetClipProperty().get("File Path", ""))
         if p in valid_paths:
             cache[p] = clip
 
-    # Import missing
     missing = [p for p in valid_paths if p not in cache]
     if missing:
         media_pool.SetCurrentFolder(target_folder)
@@ -488,9 +476,6 @@ def ensure_video_tracks(timeline, required_max_track):
         current_count += 1
 
 def clear_tracks_in_range_batched(timeline, track_indices, min_frame, max_frame):
-    """
-    Batches deletion across all tracks in a single atomic pass.
-    """
     to_delete = []
     for trk in track_indices:
         items = timeline.GetItemListInTrack("video", trk)
@@ -515,167 +500,328 @@ def apply_clip_transform(clip, pan=0.0, tilt=0.0, zoom=1.0, flip_x=False, opacit
         print(f"[YapPNG] Warning applying clip transform: {e}")
 
 # ---------------------------------------------------------------------------
-# Main GUI Window (UIManager)
+# Universal Dark UI (Tkinter - Works in both Free & Studio)
 # ---------------------------------------------------------------------------
 def run_app():
-    if not fusion_app:
-        print("[YapPNG] Could not access Fusion. Please run inside DaVinci Resolve (Workspace > Scripts).")
-        return
-
-    ui = fusion_app.UIManager
-    disp = bmd_module.UIDispatcher(ui)
     cfg = load_config()
 
+    root = tk.Tk()
+    root.title("YapPNG v2.2 - Voice-Activated PNGtuber Animator")
+    root.geometry("620x820")
+    root.minsize(580, 720)
+    root.configure(bg="#1e1e1e")
+
+    if cfg.get("stay_on_top", True):
+        root.attributes("-topmost", True)
+
+    # Dark Styling
+    style = ttk.Style()
+    style.theme_use("clam")
+    style.configure(".", background="#1e1e1e", foreground="#dddddd", font=("Segoe UI", 9))
+    style.configure("TLabel", background="#1e1e1e", foreground="#dddddd")
+    style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), foreground="#00aaff")
+    style.configure("Section.TLabel", font=("Segoe UI", 9, "bold"), foreground="#ffffff")
+    style.configure("TButton", background="#2d2d2d", foreground="#ffffff", borderwidth=1, padding=4)
+    style.map("TButton", background=[("active", "#0e639c"), ("pressed", "#1177bb")])
+    style.configure("Action.TButton", background="#0e639c", foreground="#ffffff", font=("Segoe UI", 9, "bold"))
+    style.map("Action.TButton", background=[("active", "#1177bb")])
+    style.configure("TEntry", fieldbackground="#2b2b2b", foreground="#ffffff", insertcolor="#ffffff")
+    style.configure("TCombobox", fieldbackground="#2b2b2b", foreground="#ffffff")
+    style.configure("TSpinbox", fieldbackground="#2b2b2b", foreground="#ffffff")
+    style.configure("TCheckbutton", background="#1e1e1e", foreground="#dddddd")
+    style.map("TCheckbutton", background=[("active", "#1e1e1e")])
+    style.configure("Horizontal.TScale", background="#1e1e1e", troughcolor="#2b2b2b")
+
+    # Main Scrollable Frame Container
+    canvas = tk.Canvas(root, bg="#1e1e1e", highlightthickness=0)
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+    scroll_frame = ttk.Frame(canvas)
+
+    scroll_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+    canvas_window = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+
+    def _on_canvas_configure(e):
+        canvas.itemconfig(canvas_window, width=e.width)
+    canvas.bind("<Configure>", _on_canvas_configure)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    # Enable mousewheel scrolling
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    root.bind_all("<MouseWheel>", _on_mousewheel)
+
+    # UI Variables
+    var_char_name = tk.StringVar(value=cfg.get("active_character", "Character_Host"))
+    var_char_folder = tk.StringVar()
+    var_expr_name = tk.StringVar(value="Neutral")
+    var_idle_png = tk.StringVar()
+    var_talk_png = tk.StringVar()
+    var_shout_png = tk.StringVar()
+
+    var_preset = tk.StringVar(value="Left Side")
+    var_pos_x = tk.StringVar(value="-550.0")
+    var_pos_y = tk.StringVar(value="-150.0")
+    var_zoom = tk.StringVar(value="0.85")
+    var_flip_x = tk.BooleanVar(value=False)
+    var_bounce = tk.BooleanVar(value=True)
+    var_bounce_px = tk.IntVar(value=18)
+    var_dim = tk.BooleanVar(value=True)
+    var_dim_pct = tk.IntVar(value=70)
+
+    var_audio_src = tk.StringVar(value="Timeline Audio Track")
+    var_audio_track = tk.IntVar(value=1)
+    var_audio_file = tk.StringVar(value=cfg.get("custom_audio_file", ""))
+    var_base_track = tk.IntVar(value=2)
+    var_talk_track = tk.IntVar(value=3)
+
+    var_thresh = tk.IntVar(value=30)
+    var_shout_thresh = tk.IntVar(value=12)
+    var_enable_shout = tk.BooleanVar(value=True)
+    var_hold_ms = tk.IntVar(value=120)
+
+    var_range_mode = tk.StringVar(value="Mark In / Out Range")
+    var_overwrite = tk.BooleanVar(value=True)
+    var_stay_on_top = tk.BooleanVar(value=bool(cfg.get("stay_on_top", True)))
+
+    # --- Header ---
     perf_badge = "⚡ NumPy Accelerated" if HAVE_NUMPY else "Python Native"
+    header_frame = ttk.Frame(scroll_frame)
+    header_frame.pack(fill="x", padx=14, pady=(10, 6))
+    ttk.Label(header_frame, text="🎙️ YapPNG v2.2", style="Header.TLabel").pack(side="left")
+    ttk.Label(header_frame, text=perf_badge, foreground="#00aaff").pack(side="left", padx=10)
 
-    win = disp.AddWindow({
-        "WindowTitle": "YapPNG - Voice-Activated PNGtuber Animator",
-        "ID": "YapPNGWin",
-        "Geometry": [180, 40, 620, 940],
-    }, [
-        ui.VGroup({"Spacing": 6, "Margin": 10}, [
-            # Header
-            ui.Label({
-                "Text": f"<b>🎙️ YapPNG v2.2</b> &nbsp; <small style='color:#03A9F4;'>{perf_badge}</small>",
-                "Weight": 0,
-                "StyleSheet": "font-size: 14px;"
-            }),
+    def _toggle_on_top():
+        root.attributes("-topmost", var_stay_on_top.get())
+        cfg["stay_on_top"] = var_stay_on_top.get()
+        save_config(cfg)
+    ttk.Checkbutton(header_frame, text="Stay on Top", variable=var_stay_on_top, command=_toggle_on_top).pack(side="right")
 
-            # ---------------- 1. CHARACTER SELECTOR ----------------
-            ui.Label({"Text": "<b>1. Character Profile:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.ComboBox({"ID": "CharCombo", "Weight": 0.65}),
-                ui.Button({"ID": "NewCharBtn", "Text": "+ New Char", "Weight": 0.2}),
-                ui.Button({"ID": "DelCharBtn", "Text": "🗑 Del", "Weight": 0.15})
-            ]),
+    # Helper: Separator line
+    def add_separator():
+        sep = tk.Frame(scroll_frame, height=1, bg="#333333")
+        sep.pack(fill="x", padx=14, pady=6)
 
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Character Folder:", "Weight": 0.28}),
-                ui.FileControl({"ID": "CharFolderCtrl", "Weight": 0.52}),
-                ui.Button({"ID": "ScanFolderBtn", "Text": "📂 Auto-Scan", "Weight": 0.2})
-            ]),
+    # ---------------- SECTION 1: CHARACTER PROFILE ----------------
+    f1 = ttk.LabelFrame(scroll_frame, text=" 1. Character Profile ", padding=8)
+    f1.pack(fill="x", padx=14, pady=4)
 
-            # ---------------- 2. EXPRESSIONS & SHOUT SPRITES ----------------
-            ui.Label({"Text": "<b>2. Expression Sprites:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.ComboBox({"ID": "ExprCombo", "Weight": 0.65}),
-                ui.Button({"ID": "NewExprBtn", "Text": "+ New Expr", "Weight": 0.2}),
-                ui.Button({"ID": "DelExprBtn", "Text": "🗑 Del", "Weight": 0.15})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Idle PNG (Closed):", "Weight": 0.3}),
-                ui.FileControl({"ID": "IdleFileCtrl", "Weight": 0.7})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Talk PNG (Open):", "Weight": 0.3}),
-                ui.FileControl({"ID": "TalkFileCtrl", "Weight": 0.7})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Shout PNG (Scream):", "Weight": 0.3}),
-                ui.FileControl({"ID": "ShoutFileCtrl", "Weight": 0.7})
-            ]),
+    r1 = ttk.Frame(f1)
+    r1.pack(fill="x", pady=2)
+    ttk.Label(r1, text="Character:").pack(side="left")
+    char_combo = ttk.Combobox(r1, textvariable=var_char_name, state="readonly", width=22)
+    char_combo.pack(side="left", padx=6)
+    btn_new_char = ttk.Button(r1, text="+ New Char")
+    btn_new_char.pack(side="left", padx=2)
+    btn_del_char = ttk.Button(r1, text="🗑 Del")
+    btn_del_char.pack(side="left", padx=2)
 
-            # ---------------- 3. SCREEN PLACEMENT, BOUNCE & DIMMING ----------------
-            ui.Label({"Text": "<b>3. Placement, Dynamics & Dimming:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Layout Preset:", "Weight": 0.25}),
-                ui.ComboBox({"ID": "PresetCombo", "Weight": 0.35}),
-                ui.Button({"ID": "FetchLayoutBtn", "Text": "📥 Fetch from Timeline Clip", "Weight": 0.4})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Pos X (Pan):", "Weight": 0.2}),
-                ui.LineEdit({"ID": "PosXEdit", "Text": "-550", "Weight": 0.25}),
-                ui.Label({"Text": "Pos Y (Tilt):", "Weight": 0.2}),
-                ui.LineEdit({"ID": "PosYEdit", "Text": "-150", "Weight": 0.25})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Zoom / Scale:", "Weight": 0.25}),
-                ui.LineEdit({"ID": "ZoomEdit", "Text": "0.85", "Weight": 0.25}),
-                ui.CheckBox({"ID": "FlipXCheck", "Text": "Flip Horizontal (Mirror)", "Checked": False, "Weight": 0.5})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.CheckBox({"ID": "BounceCheck", "Text": "🦘 Bounce Hop", "Checked": True, "Weight": 0.4}),
-                ui.Label({"Text": "Hop (px):", "Weight": 0.18}),
-                ui.SpinBox({"ID": "BounceSpin", "Minimum": 4, "Maximum": 50, "Value": 18, "Weight": 0.15}),
-                ui.CheckBox({"ID": "DimCheck", "Text": "💡 Inactive Dim", "Checked": True, "Weight": 0.4}),
-                ui.Label({"Text": "Dim (%):", "Weight": 0.18}),
-                ui.SpinBox({"ID": "DimSpin", "Minimum": 30, "Maximum": 95, "Value": 70, "Weight": 0.15})
-            ]),
+    r2 = ttk.Frame(f1)
+    r2.pack(fill="x", pady=(6, 2))
+    ttk.Label(r2, text="Folder:").pack(side="left")
+    ttk.Entry(r2, textvariable=var_char_folder).pack(side="left", fill="x", expand=True, padx=6)
+    def _browse_folder():
+        d = filedialog.askdirectory(title="Select Character Folder")
+        if d:
+            var_char_folder.set(d)
+            _scan_folder()
+    ttk.Button(r2, text="Browse...", command=_browse_folder).pack(side="left", padx=2)
+    btn_scan_folder = ttk.Button(r2, text="📂 Auto-Scan")
+    btn_scan_folder.pack(side="left", padx=2)
 
-            # ---------------- 4. AUDIO & TRACK ROUTING ----------------
-            ui.Label({"Text": "<b>4. Audio & Video Track Routing:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.ComboBox({"ID": "AudioSourceCombo", "Weight": 0.5}),
-                ui.Label({"Text": "Audio Track:", "Weight": 0.25}),
-                ui.SpinBox({"ID": "AudioTrackSpin", "Minimum": 1, "Maximum": 16, "Value": 1, "Weight": 0.25})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Or Audio File:", "Weight": 0.3}),
-                ui.FileControl({"ID": "CustomAudioCtrl", "Weight": 0.7})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Idle Video Track:", "Weight": 0.25}),
-                ui.SpinBox({"ID": "BaseTrackSpin", "Minimum": 1, "Maximum": 16, "Value": 2, "Weight": 0.25}),
-                ui.Label({"Text": "Talk Video Track:", "Weight": 0.25}),
-                ui.SpinBox({"ID": "TalkTrackSpin", "Minimum": 1, "Maximum": 16, "Value": 3, "Weight": 0.25})
-            ]),
+    # ---------------- SECTION 2: EXPRESSION SPRITES ----------------
+    f2 = ttk.LabelFrame(scroll_frame, text=" 2. Expression Sprites ", padding=8)
+    f2.pack(fill="x", padx=14, pady=4)
 
-            # ---------------- 5. SENSITIVITY & SHOUT DETECTION ----------------
-            ui.Label({"Text": "<b>5. Voice & Shouting Detection:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Threshold (dB):", "Weight": 0.3}),
-                ui.Slider({"ID": "ThreshSlider", "Minimum": 10, "Maximum": 60, "Value": 30, "Weight": 0.35}),
-                ui.Label({"ID": "ThreshLabel", "Text": "-30 dB", "Weight": 0.12}),
-                ui.Button({"ID": "CalibrateBtn", "Text": "🎙️ Auto-Calibrate", "Weight": 0.23})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.CheckBox({"ID": "ShoutCheck", "Text": "📢 Shouting / Scream Trigger:", "Checked": True, "Weight": 0.45}),
-                ui.Slider({"ID": "ShoutSlider", "Minimum": 6, "Maximum": 24, "Value": 12, "Weight": 0.4}),
-                ui.Label({"ID": "ShoutLabel", "Text": "-12 dB", "Weight": 0.15})
-            ]),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Mouth Hold (ms):", "Weight": 0.3}),
-                ui.Slider({"ID": "HoldSlider", "Minimum": 30, "Maximum": 350, "Value": 120, "Weight": 0.5}),
-                ui.Label({"ID": "HoldLabel", "Text": "120 ms", "Weight": 0.2})
-            ]),
+    er1 = ttk.Frame(f2)
+    er1.pack(fill="x", pady=2)
+    ttk.Label(er1, text="Expression:").pack(side="left")
+    expr_combo = ttk.Combobox(er1, textvariable=var_expr_name, state="readonly", width=22)
+    expr_combo.pack(side="left", padx=6)
+    btn_new_expr = ttk.Button(er1, text="+ New Expr")
+    btn_new_expr.pack(side="left", padx=2)
+    btn_del_expr = ttk.Button(er1, text="🗑 Del")
+    btn_del_expr.pack(side="left", padx=2)
 
-            # ---------------- 6. TIMELINE ACTIONS ----------------
-            ui.Label({"Text": "<b>6. Timeline Placement Mode:</b>", "Weight": 0}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Label({"Text": "Placement Mode:", "Weight": 0.28}),
-                ui.ComboBox({"ID": "RangeCombo", "Weight": 0.42}),
-                ui.CheckBox({"ID": "OverwriteCheck", "Text": "🧹 Clean Overwrite", "Checked": True, "Weight": 0.3})
-            ]),
+    # Sprite pickers
+    def make_file_row(parent, label_text, str_var):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=2)
+        ttk.Label(row, text=label_text, width=16, anchor="w").pack(side="left")
+        ttk.Entry(row, textvariable=str_var).pack(side="left", fill="x", expand=True, padx=6)
+        def _browse():
+            f = filedialog.askopenfilename(
+                title=f"Select {label_text}",
+                filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.webp"), ("All Files", "*.*")]
+            )
+            if f:
+                str_var.set(f)
+                save_ui_to_config()
+        ttk.Button(row, text="Browse...", command=_browse).pack(side="left")
 
-            ui.VGap({"Weight": 0.05}),
-            ui.HGroup({"Weight": 0, "Spacing": 6}, [
-                ui.Button({"ID": "PreviewBtn", "Text": "🔍 Test / Preview Detection", "Weight": 0.45}),
-                ui.Button({"ID": "GenerateBtn", "Text": "▶ Splicing To Timeline", "Weight": 0.55})
-            ]),
+    make_file_row(f2, "Idle (Closed):", var_idle_png)
+    make_file_row(f2, "Talk (Open):", var_talk_png)
+    make_file_row(f2, "Shout (Scream):", var_shout_png)
 
-            # ---------------- STATUS BOX ----------------
-            ui.VGap({"Weight": 0.05}),
-            ui.Label({
-                "ID": "StatusLabel",
-                "Text": "Ready. Choose range or Marker-Driven mode and click Splicing.",
-                "WordWrap": True,
-                "StyleSheet": "background-color: #1e1e1e; border: 1px solid #333; padding: 6px; border-radius: 4px; color: #aaa;",
-                "Weight": 0.3
-            })
-        ])
-    ])
+    # ---------------- SECTION 3: PLACEMENT & DYNAMICS ----------------
+    f3 = ttk.LabelFrame(scroll_frame, text=" 3. Placement, Dynamics & Dimming ", padding=8)
+    f3.pack(fill="x", padx=14, pady=4)
 
-    itm = win.GetItems()
+    pr1 = ttk.Frame(f3)
+    pr1.pack(fill="x", pady=2)
+    ttk.Label(pr1, text="Preset:").pack(side="left")
+    preset_combo = ttk.Combobox(pr1, textvariable=var_preset, values=list(PRESETS.keys()), state="readonly", width=14)
+    preset_combo.pack(side="left", padx=6)
+    btn_fetch = ttk.Button(pr1, text="📥 Fetch from Timeline Clip")
+    btn_fetch.pack(side="left", padx=6)
 
-    def get_cur_char_name():
-        return itm["CharCombo"].CurrentText or cfg.get("active_character", "Character_Host")
+    pr2 = ttk.Frame(f3)
+    pr2.pack(fill="x", pady=4)
+    ttk.Label(pr2, text="Pos X:").pack(side="left")
+    ttk.Entry(pr2, textvariable=var_pos_x, width=8).pack(side="left", padx=4)
+    ttk.Label(pr2, text="Pos Y:").pack(side="left", padx=(8, 0))
+    ttk.Entry(pr2, textvariable=var_pos_y, width=8).pack(side="left", padx=4)
+    ttk.Label(pr2, text="Zoom:").pack(side="left", padx=(8, 0))
+    ttk.Entry(pr2, textvariable=var_zoom, width=8).pack(side="left", padx=4)
+    ttk.Checkbutton(pr2, text="Flip Horizontal", variable=var_flip_x).pack(side="left", padx=(10, 0))
 
+    pr3 = ttk.Frame(f3)
+    pr3.pack(fill="x", pady=2)
+    ttk.Checkbutton(pr3, text="🦘 Bounce Hop", variable=var_bounce).pack(side="left")
+    ttk.Label(pr3, text="Hop (px):").pack(side="left", padx=(6, 2))
+    ttk.Spinbox(pr3, from_=4, to=50, textvariable=var_bounce_px, width=5).pack(side="left")
+    ttk.Checkbutton(pr3, text="💡 Inactive Dim", variable=var_dim).pack(side="left", padx=(14, 0))
+    ttk.Label(pr3, text="Dim (%):").pack(side="left", padx=(6, 2))
+    ttk.Spinbox(pr3, from_=30, to=95, textvariable=var_dim_pct, width=5).pack(side="left")
+
+    # ---------------- SECTION 4: AUDIO & TRACK ROUTING ----------------
+    f4 = ttk.LabelFrame(scroll_frame, text=" 4. Audio & Track Routing ", padding=8)
+    f4.pack(fill="x", padx=14, pady=4)
+
+    ar1 = ttk.Frame(f4)
+    ar1.pack(fill="x", pady=2)
+    ttk.Label(ar1, text="Audio Source:").pack(side="left")
+    audio_src_combo = ttk.Combobox(ar1, textvariable=var_audio_src, values=["Timeline Audio Track", "Custom Audio File"], state="readonly", width=18)
+    audio_src_combo.pack(side="left", padx=6)
+    ttk.Label(ar1, text="Audio Track:").pack(side="left", padx=(8, 2))
+    ttk.Spinbox(ar1, from_=1, to=16, textvariable=var_audio_track, width=5).pack(side="left")
+
+    ar2 = ttk.Frame(f4)
+    ar2.pack(fill="x", pady=2)
+    ttk.Label(ar2, text="Or Audio File:", width=14, anchor="w").pack(side="left")
+    ttk.Entry(ar2, textvariable=var_audio_file).pack(side="left", fill="x", expand=True, padx=6)
+    def _browse_audio():
+        f = filedialog.askopenfilename(
+            title="Select Audio File",
+            filetypes=[("Audio Files", "*.wav;*.mp3;*.m4a;*.flac;*.aac;*.mp4;*.mov"), ("All Files", "*.*")]
+        )
+        if f:
+            var_audio_file.set(f)
+    ttk.Button(ar2, text="Browse...", command=_browse_audio).pack(side="left")
+
+    ar3 = ttk.Frame(f4)
+    ar3.pack(fill="x", pady=2)
+    ttk.Label(ar3, text="Idle Video Track:").pack(side="left")
+    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_base_track, width=5).pack(side="left", padx=6)
+    ttk.Label(ar3, text="Talk Video Track:").pack(side="left", padx=(12, 0))
+    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_talk_track, width=5).pack(side="left", padx=6)
+
+    # ---------------- SECTION 5: SENSITIVITY & SHOUT DETECTION ----------------
+    f5 = ttk.LabelFrame(scroll_frame, text=" 5. Voice & Shouting Detection ", padding=8)
+    f5.pack(fill="x", padx=14, pady=4)
+
+    sr1 = ttk.Frame(f5)
+    sr1.pack(fill="x", pady=2)
+    lbl_thresh_val = ttk.Label(sr1, text="-30 dB", width=8)
+    ttk.Label(sr1, text="Threshold:").pack(side="left")
+    scale_thresh = ttk.Scale(sr1, from_=10, to=60, variable=var_thresh, orient="horizontal")
+    scale_thresh.pack(side="left", fill="x", expand=True, padx=8)
+    lbl_thresh_val.pack(side="left")
+    btn_calibrate = ttk.Button(sr1, text="🎙️ Auto-Calibrate")
+    btn_calibrate.pack(side="left", padx=4)
+
+    def _update_thresh_lbl(*args):
+        lbl_thresh_val.config(text=f"-{var_thresh.get()} dB")
+    var_thresh.trace_add("write", _update_thresh_lbl)
+
+    sr2 = ttk.Frame(f5)
+    sr2.pack(fill="x", pady=2)
+    lbl_shout_val = ttk.Label(sr2, text="-12 dB", width=8)
+    ttk.Checkbutton(sr2, text="📢 Shouting Trigger:", variable=var_enable_shout).pack(side="left")
+    scale_shout = ttk.Scale(sr2, from_=6, to=24, variable=var_shout_thresh, orient="horizontal")
+    scale_shout.pack(side="left", fill="x", expand=True, padx=8)
+    lbl_shout_val.pack(side="left")
+
+    def _update_shout_lbl(*args):
+        lbl_shout_val.config(text=f"-{var_shout_thresh.get()} dB")
+    var_shout_thresh.trace_add("write", _update_shout_lbl)
+
+    sr3 = ttk.Frame(f5)
+    sr3.pack(fill="x", pady=2)
+    lbl_hold_val = ttk.Label(sr3, text="120 ms", width=8)
+    ttk.Label(sr3, text="Mouth Hold:").pack(side="left")
+    scale_hold = ttk.Scale(sr3, from_=30, to=350, variable=var_hold_ms, orient="horizontal")
+    scale_hold.pack(side="left", fill="x", expand=True, padx=8)
+    lbl_hold_val.pack(side="left")
+
+    def _update_hold_lbl(*args):
+        lbl_hold_val.config(text=f"{var_hold_ms.get()} ms")
+    var_hold_ms.trace_add("write", _update_hold_lbl)
+
+    # ---------------- SECTION 6: ACTIONS & STATUS ----------------
+    f6 = ttk.LabelFrame(scroll_frame, text=" 6. Timeline Splicing ", padding=8)
+    f6.pack(fill="x", padx=14, pady=4)
+
+    act_r1 = ttk.Frame(f6)
+    act_r1.pack(fill="x", pady=2)
+    ttk.Label(act_r1, text="Mode:").pack(side="left")
+    range_combo = ttk.Combobox(
+        act_r1,
+        textvariable=var_range_mode,
+        values=["Mark In / Out Range", "Entire Audio Track", "🏷️ Marker-Driven Expressions"],
+        state="readonly",
+        width=26
+    )
+    range_combo.pack(side="left", padx=6)
+    ttk.Checkbutton(act_r1, text="🧹 Clean Overwrite", variable=var_overwrite).pack(side="left", padx=8)
+
+    act_r2 = ttk.Frame(f6)
+    act_r2.pack(fill="x", pady=(8, 2))
+    btn_preview = ttk.Button(act_r2, text="🔍 Test / Preview Detection")
+    btn_preview.pack(side="left", fill="x", expand=True, padx=3)
+    btn_generate = ttk.Button(act_r2, text="▶ Splicing To Timeline", style="Action.TButton")
+    btn_generate.pack(side="left", fill="x", expand=True, padx=3)
+
+    # Status Label
+    lbl_status = tk.Label(
+        scroll_frame,
+        text="Ready. Select character, set In/Out marks on timeline, and click Splicing.",
+        bg="#252526",
+        fg="#aaaaaa",
+        relief="groove",
+        padx=10,
+        pady=8,
+        wraplength=540,
+        justify="left"
+    )
+    lbl_status.pack(fill="x", padx=14, pady=(8, 14))
+
+    def set_status(msg, color="#ffffff"):
+        print(f"[YapPNG] {msg}")
+        lbl_status.config(text=msg, fg=color)
+
+    # --- Data Binding Logic ---
     def get_cur_char_data():
-        char_name = get_cur_char_name()
+        cname = var_char_name.get()
         if "characters" not in cfg:
             cfg["characters"] = {}
-        if char_name not in cfg["characters"]:
-            cfg["characters"][char_name] = {
+        if cname not in cfg["characters"]:
+            cfg["characters"][cname] = {
                 "folder": "",
                 "active_expression": "Neutral",
                 "expressions": {"Neutral": {"idle_png": "", "talk_png": "", "shout_png": ""}},
@@ -697,171 +843,148 @@ def run_app():
                 "zoom": 1.0,
                 "flip_x": False
             }
-        return cfg["characters"][char_name]
+        return cfg["characters"][cname]
 
-    def refresh_characters_combo():
-        itm["CharCombo"].Clear()
-        char_names = list(cfg.get("characters", {}).keys())
-        for cname in char_names:
-            itm["CharCombo"].AddItem(cname)
-        active = cfg.get("active_character", "Character_Host")
-        if active in char_names:
-            itm["CharCombo"].CurrentIndex = char_names.index(active)
-        load_character_data_into_ui()
+    def refresh_characters_ui():
+        cnames = list(cfg.get("characters", {}).keys())
+        char_combo["values"] = cnames
+        cur = cfg.get("active_character", "Character_Host")
+        if cur in cnames:
+            var_char_name.set(cur)
+        elif cnames:
+            var_char_name.set(cnames[0])
+        load_character_into_ui()
 
-    def load_character_data_into_ui():
+    def load_character_into_ui():
         cdata = get_cur_char_data()
-        itm["CharFolderCtrl"].Text = cdata.get("folder", "")
-        itm["AudioTrackSpin"].Value = cdata.get("audio_track_index", 1)
-        itm["BaseTrackSpin"].Value = cdata.get("base_video_track", 2)
-        itm["TalkTrackSpin"].Value = cdata.get("talk_video_track", 3)
+        var_char_folder.set(cdata.get("folder", ""))
+        var_audio_track.set(cdata.get("audio_track_index", 1))
+        var_base_track.set(cdata.get("base_video_track", 2))
+        var_talk_track.set(cdata.get("talk_video_track", 3))
 
-        thresh = abs(cdata.get("threshold_db", -30))
-        itm["ThreshSlider"].Value = thresh
-        itm["ThreshLabel"].Text = f"-{thresh} dB"
+        var_thresh.set(abs(cdata.get("threshold_db", -30)))
+        var_shout_thresh.set(abs(cdata.get("shout_threshold_db", -12)))
+        var_enable_shout.set(bool(cdata.get("enable_shout", True)))
+        var_hold_ms.set(cdata.get("hold_ms", 120))
 
-        shout_thresh = abs(cdata.get("shout_threshold_db", -12))
-        itm["ShoutSlider"].Value = shout_thresh
-        itm["ShoutLabel"].Text = f"-{shout_thresh} dB"
-        itm["ShoutCheck"].Checked = bool(cdata.get("enable_shout", True))
+        var_bounce.set(bool(cdata.get("enable_bounce", True)))
+        var_bounce_px.set(int(cdata.get("bounce_px", 18)))
+        var_dim.set(bool(cdata.get("enable_dimming", True)))
+        var_dim_pct.set(int(cdata.get("dim_opacity", 70)))
 
-        hold = cdata.get("hold_ms", 120)
-        itm["HoldSlider"].Value = hold
-        itm["HoldLabel"].Text = f"{hold} ms"
+        var_preset.set(cdata.get("layout_preset", "Custom"))
+        var_pos_x.set(str(cdata.get("pan", 0.0)))
+        var_pos_y.set(str(cdata.get("tilt", 0.0)))
+        var_zoom.set(str(cdata.get("zoom", 1.0)))
+        var_flip_x.set(bool(cdata.get("flip_x", False)))
 
-        # Bounce & Dimming
-        itm["BounceCheck"].Checked = bool(cdata.get("enable_bounce", True))
-        itm["BounceSpin"].Value = int(cdata.get("bounce_px", 18))
-        itm["DimCheck"].Checked = bool(cdata.get("enable_dimming", True))
-        itm["DimSpin"].Value = int(cdata.get("dim_opacity", 70))
+        refresh_expressions_ui()
 
-        # Layout
-        preset_name = cdata.get("layout_preset", "Custom")
-        preset_list = list(PRESETS.keys())
-        if preset_name in preset_list:
-            itm["PresetCombo"].CurrentIndex = preset_list.index(preset_name)
-
-        itm["PosXEdit"].Text = str(cdata.get("pan", 0.0))
-        itm["PosYEdit"].Text = str(cdata.get("tilt", 0.0))
-        itm["ZoomEdit"].Text = str(cdata.get("zoom", 1.0))
-        itm["FlipXCheck"].Checked = bool(cdata.get("flip_x", False))
-
-        refresh_expressions_combo()
-
-    def refresh_expressions_combo():
+    def refresh_expressions_ui():
         cdata = get_cur_char_data()
-        itm["ExprCombo"].Clear()
-        expr_list = list(cdata.get("expressions", {}).keys())
-        for exp in expr_list:
-            itm["ExprCombo"].AddItem(exp)
-        active_expr = cdata.get("active_expression", "Neutral")
-        if active_expr in expr_list:
-            itm["ExprCombo"].CurrentIndex = expr_list.index(active_expr)
-        load_current_expression_sprites()
+        enames = list(cdata.get("expressions", {}).keys())
+        expr_combo["values"] = enames
+        active = cdata.get("active_expression", "Neutral")
+        if active in enames:
+            var_expr_name.set(active)
+        elif enames:
+            var_expr_name.set(enames[0])
+        load_expression_sprites()
 
-    def load_current_expression_sprites():
+    def load_expression_sprites():
         cdata = get_cur_char_data()
-        cur_expr = itm["ExprCombo"].CurrentText
-        if not cur_expr:
-            return
-        expr_data = cdata.get("expressions", {}).get(cur_expr, {})
-        itm["IdleFileCtrl"].Text = expr_data.get("idle_png", "")
-        itm["TalkFileCtrl"].Text = expr_data.get("talk_png", "")
-        itm["ShoutFileCtrl"].Text = expr_data.get("shout_png", "")
+        cur_exp = var_expr_name.get()
+        edata = cdata.get("expressions", {}).get(cur_exp, {})
+        var_idle_png.set(edata.get("idle_png", ""))
+        var_talk_png.set(edata.get("talk_png", ""))
+        var_shout_png.set(edata.get("shout_png", ""))
 
-    for p in PRESETS.keys():
-        itm["PresetCombo"].AddItem(p)
-
-    itm["AudioSourceCombo"].AddItem("Timeline Audio Track")
-    itm["AudioSourceCombo"].AddItem("Custom Audio File")
-    itm["AudioSourceCombo"].CurrentIndex = cfg.get("audio_source_type", 0)
-    itm["CustomAudioCtrl"].Text = cfg.get("custom_audio_file", "")
-
-    itm["RangeCombo"].AddItem("Mark In / Out Range")
-    itm["RangeCombo"].AddItem("Entire Audio Track")
-    itm["RangeCombo"].AddItem("🏷️ Marker-Driven Expressions")
-    itm["RangeCombo"].CurrentIndex = cfg.get("range_mode", 0)
-    itm["OverwriteCheck"].Checked = bool(cfg.get("overwrite_existing", True))
-
-    refresh_characters_combo()
-
-    def set_status(msg, color="#ddd"):
-        print(f"[YapPNG] {msg}")
-        itm["StatusLabel"].Text = f"<span style='color:{color};'>{msg}</span>"
-
-    def save_current_ui_to_config():
-        char_name = get_cur_char_name()
+    def save_ui_to_config():
+        cname = var_char_name.get()
         cdata = get_cur_char_data()
 
-        cfg["active_character"] = char_name
-        cdata["folder"] = itm["CharFolderCtrl"].Text.strip()
-        cdata["audio_track_index"] = int(itm["AudioTrackSpin"].Value)
-        cdata["base_video_track"] = int(itm["BaseTrackSpin"].Value)
-        cdata["talk_video_track"] = int(itm["TalkTrackSpin"].Value)
-        cdata["threshold_db"] = -int(itm["ThreshSlider"].Value)
-        cdata["shout_threshold_db"] = -int(itm["ShoutSlider"].Value)
-        cdata["enable_shout"] = bool(itm["ShoutCheck"].Checked)
-        cdata["hold_ms"] = int(itm["HoldSlider"].Value)
+        cfg["active_character"] = cname
+        cdata["folder"] = var_char_folder.get().strip()
+        cdata["audio_track_index"] = var_audio_track.get()
+        cdata["base_video_track"] = var_base_track.get()
+        cdata["talk_video_track"] = var_talk_track.get()
+        cdata["threshold_db"] = -var_thresh.get()
+        cdata["shout_threshold_db"] = -var_shout_thresh.get()
+        cdata["enable_shout"] = var_enable_shout.get()
+        cdata["hold_ms"] = var_hold_ms.get()
 
-        cdata["enable_bounce"] = bool(itm["BounceCheck"].Checked)
-        cdata["bounce_px"] = int(itm["BounceSpin"].Value)
-        cdata["enable_dimming"] = bool(itm["DimCheck"].Checked)
-        cdata["dim_opacity"] = int(itm["DimSpin"].Value)
+        cdata["enable_bounce"] = var_bounce.get()
+        cdata["bounce_px"] = var_bounce_px.get()
+        cdata["enable_dimming"] = var_dim.get()
+        cdata["dim_opacity"] = var_dim_pct.get()
 
-        cdata["layout_preset"] = itm["PresetCombo"].CurrentText
+        cdata["layout_preset"] = var_preset.get()
         try:
-            cdata["pan"] = float(itm["PosXEdit"].Text)
+            cdata["pan"] = float(var_pos_x.get())
         except ValueError:
             pass
         try:
-            cdata["tilt"] = float(itm["PosYEdit"].Text)
+            cdata["tilt"] = float(var_pos_y.get())
         except ValueError:
             pass
         try:
-            cdata["zoom"] = float(itm["ZoomEdit"].Text)
+            cdata["zoom"] = float(var_zoom.get())
         except ValueError:
             pass
-        cdata["flip_x"] = bool(itm["FlipXCheck"].Checked)
+        cdata["flip_x"] = var_flip_x.get()
 
-        cur_expr = itm["ExprCombo"].CurrentText
-        if cur_expr:
-            cdata["active_expression"] = cur_expr
-            if cur_expr in cdata.get("expressions", {}):
-                cdata["expressions"][cur_expr]["idle_png"] = itm["IdleFileCtrl"].Text.strip()
-                cdata["expressions"][cur_expr]["talk_png"] = itm["TalkFileCtrl"].Text.strip()
-                cdata["expressions"][cur_expr]["shout_png"] = itm["ShoutFileCtrl"].Text.strip()
+        cur_exp = var_expr_name.get()
+        if cur_exp:
+            cdata["active_expression"] = cur_exp
+            if cur_exp in cdata.get("expressions", {}):
+                cdata["expressions"][cur_exp]["idle_png"] = var_idle_png.get().strip()
+                cdata["expressions"][cur_exp]["talk_png"] = var_talk_png.get().strip()
+                cdata["expressions"][cur_exp]["shout_png"] = var_shout_png.get().strip()
 
-        cfg["audio_source_type"] = itm["AudioSourceCombo"].CurrentIndex
-        cfg["custom_audio_file"] = itm["CustomAudioCtrl"].Text.strip()
-        cfg["range_mode"] = itm["RangeCombo"].CurrentIndex
-        cfg["overwrite_existing"] = bool(itm["OverwriteCheck"].Checked)
+        cfg["audio_source_type"] = 1 if var_audio_src.get() == "Custom Audio File" else 0
+        cfg["custom_audio_file"] = var_audio_file.get().strip()
+
+        rmode_map = {"Mark In / Out Range": 0, "Entire Audio Track": 1, "🏷️ Marker-Driven Expressions": 2}
+        cfg["range_mode"] = rmode_map.get(var_range_mode.get(), 0)
+        cfg["overwrite_existing"] = var_overwrite.get()
         save_config(cfg)
 
-    # --- Events ---
-    def _close(ev):
-        save_current_ui_to_config()
-        disp.ExitLoop()
-    win.On.YapPNGWin.Close = _close
+    # Event handlers
+    def _on_char_change(event):
+        save_ui_to_config()
+        cfg["active_character"] = var_char_name.get()
+        load_character_into_ui()
+    char_combo.bind("<<ComboboxSelected>>", _on_char_change)
 
-    def _char_changed(ev):
-        save_current_ui_to_config()
-        cfg["active_character"] = itm["CharCombo"].CurrentText
-        load_character_data_into_ui()
-    win.On.CharCombo.CurrentIndexChanged = _char_changed
+    def _on_expr_change(event):
+        save_ui_to_config()
+        cdata = get_cur_char_data()
+        cdata["active_expression"] = var_expr_name.get()
+        load_expression_sprites()
+    expr_combo.bind("<<ComboboxSelected>>", _on_expr_change)
 
-    def _add_char(ev):
-        save_current_ui_to_config()
+    def _on_preset_change(event):
+        pname = var_preset.get()
+        pvals = PRESETS.get(pname)
+        if pvals:
+            var_pos_x.set(str(pvals["pan"]))
+            var_pos_y.set(str(pvals["tilt"]))
+            var_zoom.set(str(pvals["zoom"]))
+            var_flip_x.set(bool(pvals["flip_x"]))
+            save_ui_to_config()
+    preset_combo.bind("<<ComboboxSelected>>", _on_preset_change)
+
+    def _new_char():
+        save_ui_to_config()
         base = "Character_"
         i = 1
         while f"{base}{i}" in cfg["characters"]:
             i += 1
-        new_name = f"{base}{i}"
-        cfg["characters"][new_name] = {
+        nname = f"{base}{i}"
+        cfg["characters"][nname] = {
             "folder": "",
             "active_expression": "Neutral",
-            "expressions": {
-                "Neutral": {"idle_png": "", "talk_png": "", "shout_png": ""}
-            },
+            "expressions": {"Neutral": {"idle_png": "", "talk_png": "", "shout_png": ""}},
             "audio_track_index": 2,
             "base_video_track": 4,
             "talk_video_track": 5,
@@ -880,14 +1003,14 @@ def run_app():
             "zoom": 0.85,
             "flip_x": True
         }
-        cfg["active_character"] = new_name
+        cfg["active_character"] = nname
         save_config(cfg)
-        refresh_characters_combo()
-        set_status(f"Created new character: <b>{new_name}</b>.", "#4CAF50")
-    win.On.NewCharBtn.Clicked = _add_char
+        refresh_characters_ui()
+        set_status(f"Created new character: '{nname}'.", "#4CAF50")
+    btn_new_char.config(command=_new_char)
 
-    def _del_char(ev):
-        cname = get_cur_char_name()
+    def _del_char():
+        cname = var_char_name.get()
         if len(cfg["characters"]) <= 1:
             set_status("Cannot delete the only character.", "#FF9800")
             return
@@ -895,61 +1018,75 @@ def run_app():
             del cfg["characters"][cname]
             cfg["active_character"] = next(iter(cfg["characters"].keys()))
             save_config(cfg)
-            refresh_characters_combo()
+            refresh_characters_ui()
             set_status(f"Deleted character '{cname}'.", "#FF9800")
-    win.On.DelCharBtn.Clicked = _del_char
+    btn_del_char.config(command=_del_char)
 
-    def _scan_folder(ev):
-        folder_input = itm["CharFolderCtrl"].Text.strip()
-        if not folder_input:
-            set_status("Please browse or enter a Character Folder first.", "#FF9800")
-            return
-
+    def _new_expr():
         cdata = get_cur_char_data()
-        scanned = scan_character_folder(folder_input)
-        if not scanned:
-            set_status(f"No sprites found in '{folder_input}'. Use neutral_idle.png, neutral_talk.png, neutral_shout.png.", "#FF9800")
-            return
+        base = "Expression_"
+        i = 1
+        while f"{base}{i}" in cdata["expressions"]:
+            i += 1
+        nname = f"{base}{i}"
+        cdata["expressions"][nname] = {"idle_png": "", "talk_png": "", "shout_png": ""}
+        cdata["active_expression"] = nname
+        save_config(cfg)
+        refresh_expressions_ui()
+        set_status(f"Added expression '{nname}'.", "#4CAF50")
+    btn_new_expr.config(command=_new_expr)
 
-        cdata["folder"] = os.path.dirname(folder_input) if os.path.isfile(folder_input) else folder_input
+    def _del_expr():
+        cdata = get_cur_char_data()
+        ename = var_expr_name.get()
+        if len(cdata["expressions"]) <= 1:
+            set_status("Cannot delete the only expression.", "#FF9800")
+            return
+        if ename in cdata["expressions"]:
+            del cdata["expressions"][ename]
+            cdata["active_expression"] = next(iter(cdata["expressions"].keys()))
+            save_config(cfg)
+            refresh_expressions_ui()
+            set_status(f"Deleted expression '{ename}'.", "#FF9800")
+    btn_del_expr.config(command=_del_expr)
+
+    def _scan_folder():
+        fpath = var_char_folder.get().strip()
+        if not fpath:
+            set_status("Please select a character folder first.", "#FF9800")
+            return
+        scanned = scan_character_folder(fpath)
+        if not scanned:
+            set_status(f"No expression sprites found in '{fpath}'. Use names like neutral_idle.png / neutral_talk.png.", "#FF9800")
+            return
+        cdata = get_cur_char_data()
+        cdata["folder"] = os.path.dirname(fpath) if os.path.isfile(fpath) else fpath
         cdata["expressions"] = scanned
         cdata["active_expression"] = next(iter(scanned.keys()))
         save_config(cfg)
-        refresh_expressions_combo()
-        set_status(f"Auto-scan complete! Found <b>{len(scanned)}</b> expressions: {', '.join(scanned.keys())}", "#4CAF50")
-    win.On.ScanFolderBtn.Clicked = _scan_folder
+        refresh_expressions_ui()
+        set_status(f"Auto-scan found {len(scanned)} expressions: {', '.join(scanned.keys())}", "#4CAF50")
+    btn_scan_folder.config(command=_scan_folder)
 
-    def _preset_changed(ev):
-        pname = itm["PresetCombo"].CurrentText
-        pvals = PRESETS.get(pname)
-        if pvals:
-            itm["PosXEdit"].Text = str(pvals["pan"])
-            itm["PosYEdit"].Text = str(pvals["tilt"])
-            itm["ZoomEdit"].Text = str(pvals["zoom"])
-            itm["FlipXCheck"].Checked = bool(pvals["flip_x"])
-            save_current_ui_to_config()
-    win.On.PresetCombo.CurrentIndexChanged = _preset_changed
-
-    def _fetch_layout_clicked(ev):
+    def _fetch_layout():
         try:
             if not resolve_app:
-                raise RuntimeError("DaVinci Resolve connection not available.")
+                raise RuntimeError("DaVinci Resolve is not connected.")
             proj = resolve_app.GetProjectManager().GetCurrentProject()
             if not proj:
                 raise RuntimeError("No active DaVinci Resolve project found.")
-            timeline = proj.GetCurrentTimeline()
-            if not timeline:
-                raise RuntimeError("No active Timeline found.")
+            tl = proj.GetCurrentTimeline()
+            if not tl:
+                raise RuntimeError("No active timeline found.")
 
-            target_clip = timeline.GetCurrentVideoItem()
+            target_clip = tl.GetCurrentVideoItem()
             if not target_clip:
-                base_track = int(itm["BaseTrackSpin"].Value)
-                clips = timeline.GetItemListInTrack("video", base_track)
+                clips = tl.GetItemListInTrack("video", var_base_track.get())
                 if clips and len(clips) > 0:
                     target_clip = clips[-1]
 
             if not target_clip:
-                raise RuntimeError("No clip found to fetch position from. Select a clip on your timeline.")
+                raise RuntimeError("No video clip found under playhead. Select a clip on your timeline.")
 
             props = target_clip.GetProperty()
             pan = float(props.get("Pan", 0.0))
@@ -957,78 +1094,37 @@ def run_app():
             zoom = float(props.get("ZoomX", 1.0))
             flip_x = bool(props.get("FlipX", False))
 
-            itm["PosXEdit"].Text = f"{pan:.1f}"
-            itm["PosYEdit"].Text = f"{tilt:.1f}"
-            itm["ZoomEdit"].Text = f"{zoom:.3f}"
-            itm["FlipXCheck"].Checked = flip_x
-            itm["PresetCombo"].CurrentIndex = list(PRESETS.keys()).index("Custom")
-
-            save_current_ui_to_config()
+            var_pos_x.set(f"{pan:.1f}")
+            var_pos_y.set(f"{tilt:.1f}")
+            var_zoom.set(f"{zoom:.3f}")
+            var_flip_x.set(flip_x)
+            var_preset.set("Custom")
+            save_ui_to_config()
             set_status(f"Fetched layout from '{target_clip.GetName()}': X={pan:.1f}, Y={tilt:.1f}, Zoom={zoom:.2f}, Flip={flip_x}!", "#4CAF50")
         except Exception as e:
             set_status(f"Fetch Error: {str(e)}", "#F44336")
-    win.On.FetchLayoutBtn.Clicked = _fetch_layout_clicked
+    btn_fetch.config(command=_fetch_layout)
 
-    def _expr_changed(ev):
-        cdata = get_cur_char_data()
-        cdata["active_expression"] = itm["ExprCombo"].CurrentText
-        load_current_expression_sprites()
-    win.On.ExprCombo.CurrentIndexChanged = _expr_changed
-
-    def _idle_changed(ev):
-        cdata = get_cur_char_data()
-        cur_expr = itm["ExprCombo"].CurrentText
-        if cur_expr in cdata.get("expressions", {}):
-            cdata["expressions"][cur_expr]["idle_png"] = itm["IdleFileCtrl"].Text
-            save_config(cfg)
-    win.On.IdleFileCtrl.EditingFinished = _idle_changed
-
-    def _talk_changed(ev):
-        cdata = get_cur_char_data()
-        cur_expr = itm["ExprCombo"].CurrentText
-        if cur_expr in cdata.get("expressions", {}):
-            cdata["expressions"][cur_expr]["talk_png"] = itm["TalkFileCtrl"].Text
-            save_config(cfg)
-    win.On.TalkFileCtrl.EditingFinished = _talk_changed
-
-    def _shout_changed(ev):
-        cdata = get_cur_char_data()
-        cur_expr = itm["ExprCombo"].CurrentText
-        if cur_expr in cdata.get("expressions", {}):
-            cdata["expressions"][cur_expr]["shout_png"] = itm["ShoutFileCtrl"].Text
-            save_config(cfg)
-    win.On.ShoutFileCtrl.EditingFinished = _shout_changed
-
-    def _thresh_changed(ev):
-        val = -int(ev["Value"])
-        itm["ThreshLabel"].Text = f"{val} dB"
-        get_cur_char_data()["threshold_db"] = val
-    win.On.ThreshSlider.ValueChanged = _thresh_changed
-
-    def _shout_slider_changed(ev):
-        val = -int(ev["Value"])
-        itm["ShoutLabel"].Text = f"{val} dB"
-        get_cur_char_data()["shout_threshold_db"] = val
-    win.On.ShoutSlider.ValueChanged = _shout_slider_changed
-
-    def _hold_changed(ev):
-        val = int(ev["Value"])
-        itm["HoldLabel"].Text = f"{val} ms"
-        get_cur_char_data()["hold_ms"] = val
-    win.On.HoldSlider.ValueChanged = _hold_changed
-
+    # Timeline execution helpers
     def get_timeline_zones():
+        if not resolve_app:
+            raise RuntimeError("DaVinci Resolve connection not available.")
         proj = resolve_app.GetProjectManager().GetCurrentProject()
+        if not proj:
+            raise RuntimeError("No active DaVinci Resolve project found.")
         timeline = proj.GetCurrentTimeline()
+        if not timeline:
+            raise RuntimeError("No active Timeline opened in DaVinci Resolve.")
+
         tl_start = timeline.GetStartFrame()
         tl_end = timeline.GetEndFrame()
-        range_mode = itm["RangeCombo"].CurrentIndex
+        rmode_str = var_range_mode.get()
 
         cdata = get_cur_char_data()
         avail_exprs = list(cdata.get("expressions", {}).keys())
-        default_expr = itm["ExprCombo"].CurrentText or "Neutral"
+        default_expr = var_expr_name.get() or "Neutral"
 
-        if range_mode == 2:
+        if "Marker" in rmode_str:
             markers = timeline.GetMarkers()
             if not markers:
                 raise RuntimeError("No timeline markers found! Press 'M' to add markers named after expressions (e.g. 'Happy', 'Angry').")
@@ -1054,7 +1150,7 @@ def run_app():
                 zones.append((prev_frame, tl_end, cur_expr))
             return zones
 
-        elif range_mode == 0:
+        elif "Mark In" in rmode_str:
             target_start = tl_start
             target_end = tl_end
             marks = timeline.GetMarkInOut()
@@ -1070,26 +1166,31 @@ def run_app():
         else:
             return [(tl_start, tl_end, default_expr)]
 
-    # Multi-clip timeline-aligned audio extraction
     def extract_full_audio_for_zones(zones):
+        if not resolve_app:
+            raise RuntimeError("DaVinci Resolve connection not detected.")
         proj = resolve_app.GetProjectManager().GetCurrentProject()
+        if not proj:
+            raise RuntimeError("No active DaVinci Resolve project found.")
         timeline = proj.GetCurrentTimeline()
+        if not timeline:
+            raise RuntimeError("No active timeline found in project.")
         fps = float(timeline.GetSetting("timelineFrameRate"))
 
         min_frame = min(z[0] for z in zones)
         max_frame = max(z[1] for z in zones)
         total_tl_frames = max(1, max_frame - min_frame)
 
-        audio_src_type = itm["AudioSourceCombo"].CurrentIndex
-        thresh_db = -int(itm["ThreshSlider"].Value)
-        shout_thresh_db = -int(itm["ShoutSlider"].Value)
-        enable_shout = bool(itm["ShoutCheck"].Checked)
+        is_custom_file = (var_audio_src.get() == "Custom Audio File")
+        thresh_db = -var_thresh.get()
+        shout_thresh_db = -var_shout_thresh.get()
+        enable_shout = var_enable_shout.get()
 
         all_states = [0] * total_tl_frames
         sample_pcm_for_noise = None
 
-        if audio_src_type == 1:
-            file_path = itm["CustomAudioCtrl"].Text.strip()
+        if is_custom_file:
+            file_path = var_audio_file.get().strip()
             if not os.path.isfile(file_path):
                 raise FileNotFoundError(f"Custom audio file does not exist: {file_path}")
             duration_sec = total_tl_frames / fps
@@ -1100,12 +1201,11 @@ def run_app():
             n_copy = min(total_tl_frames, len(clip_states))
             all_states[:n_copy] = clip_states[:n_copy]
         else:
-            track_idx = int(itm["AudioTrackSpin"].Value)
+            track_idx = var_audio_track.get()
             items = timeline.GetItemListInTrack("audio", track_idx)
             if not items:
                 raise RuntimeError(f"No audio clips found on Audio Track {track_idx}.")
 
-            # Find ALL clips that overlap with [min_frame, max_frame]
             overlapping_clips = []
             for itm_clip in items:
                 c_start = itm_clip.GetStart()
@@ -1157,9 +1257,9 @@ def run_app():
             "sample_pcm": sample_pcm_for_noise
         }
 
-    def _calibrate_clicked(ev):
+    def _calibrate():
         try:
-            set_status("Sampling background audio noise...", "#03A9F4")
+            set_status("Sampling background audio noise...", "#00aaff")
             zones = get_timeline_zones()
             full_audio = extract_full_audio_for_zones(zones)
             pcm = full_audio.get("sample_pcm")
@@ -1167,26 +1267,25 @@ def run_app():
                 raise RuntimeError("No audio samples available to calibrate.")
             noise_db, target_thresh = calibrate_noise_floor(pcm, sample_rate=16000)
             abs_val = abs(target_thresh)
-            itm["ThreshSlider"].Value = abs_val
-            itm["ThreshLabel"].Text = f"{target_thresh} dB"
+            var_thresh.set(abs_val)
             get_cur_char_data()["threshold_db"] = target_thresh
-            save_current_ui_to_config()
-            set_status(f"Calibrated! Noise: <b>{noise_db:.1f} dB</b>. Threshold set to: <b>{target_thresh} dB</b>.", "#4CAF50")
+            save_ui_to_config()
+            set_status(f"Calibrated! Background noise: {noise_db:.1f} dB. Threshold set to: {target_thresh} dB.", "#4CAF50")
         except Exception as e:
             set_status(f"Calibration Error: {str(e)}", "#F44336")
-    win.On.CalibrateBtn.Clicked = _calibrate_clicked
+    btn_calibrate.config(command=_calibrate)
 
-    def _preview_clicked(ev):
+    def _preview():
         try:
-            save_current_ui_to_config()
-            set_status("Analyzing audio detection...", "#03A9F4")
+            save_ui_to_config()
+            set_status("Analyzing audio detection...", "#00aaff")
             zones = get_timeline_zones()
             full_audio = extract_full_audio_for_zones(zones)
 
             all_states = full_audio["all_states"]
             fps = full_audio["fps"]
             min_frame = full_audio["min_frame"]
-            hold_ms = int(itm["HoldSlider"].Value)
+            hold = var_hold_ms.get()
 
             total_talk = 0
             total_shout = 0
@@ -1196,50 +1295,55 @@ def run_app():
                 idx_start = max(0, z_start - min_frame)
                 idx_end = min(len(all_states), z_end - min_frame)
                 zone_states = all_states[idx_start:idx_end]
-                segs = extract_segments_from_states(zone_states, fps, hold_ms=hold_ms)
+                segs = extract_segments_from_states(zone_states, fps, hold_ms=hold)
                 total_talk += sum(1 for label, _, _ in segs if label == 'TALK')
                 total_shout += sum(1 for label, _, _ in segs if label == 'SHOUT')
 
             set_status(
-                f"Preview ({len(zones)} zones): Found <b>{total_talk}</b> Talk + <b>{total_shout}</b> Shout bursts "
-                f"across {total_dur_sec:.1f}s total.",
+                f"Preview ({len(zones)} zones): Found {total_talk} Talk + {total_shout} Shout bursts "
+                f"across {total_dur_sec:.1f}s total. Ready to splice!",
                 "#4CAF50"
             )
         except Exception as e:
             set_status(f"Preview Error: {str(e)}", "#F44336")
-    win.On.PreviewBtn.Clicked = _preview_clicked
+    btn_preview.config(command=_preview)
 
-    def _generate_clicked(ev):
+    def _generate():
         try:
-            save_current_ui_to_config()
-            set_status("Timeline audio decode & media pre-caching...", "#03A9F4")
+            save_ui_to_config()
+            set_status("Timeline audio decode & media pre-caching...", "#00aaff")
 
+            if not resolve_app:
+                raise RuntimeError("DaVinci Resolve connection not detected.")
             proj = resolve_app.GetProjectManager().GetCurrentProject()
+            if not proj:
+                raise RuntimeError("No active DaVinci Resolve project found.")
             timeline = proj.GetCurrentTimeline()
+            if not timeline:
+                raise RuntimeError("No active timeline found in project.")
             media_pool = proj.GetMediaPool()
 
             zones = get_timeline_zones()
-            char_name = get_cur_char_name()
+            char_name = var_char_name.get()
             cdata = get_cur_char_data()
 
-            base_track = int(itm["BaseTrackSpin"].Value)
-            talk_track = int(itm["TalkTrackSpin"].Value)
+            base_track = var_base_track.get()
+            talk_track = var_talk_track.get()
             ensure_video_tracks(timeline, max(base_track, talk_track))
 
-            # Transform & Physics Parameters
             pan = float(cdata.get("pan", 0.0))
             tilt = float(cdata.get("tilt", 0.0))
             zoom = float(cdata.get("zoom", 1.0))
             flip_x = bool(cdata.get("flip_x", False))
 
-            enable_bounce = bool(cdata.get("enable_bounce", True))
-            bounce_px = float(cdata.get("bounce_px", 18))
+            enable_bounce = var_bounce.get()
+            bounce_px = float(var_bounce_px.get())
 
-            enable_dim = bool(cdata.get("enable_dimming", True))
-            dim_opacity = float(cdata.get("dim_opacity", 70))
+            enable_dim = var_dim.get()
+            dim_opacity = float(var_dim_pct.get())
             idle_opacity = dim_opacity if enable_dim else 100.0
 
-            # 1. Pre-Cache all Media Pool items in one shot
+            # 1. Pre-Cache all Media Pool items
             folder = get_media_folder(media_pool, f"PNGtuber - {char_name}")
             all_paths = []
             for z_exp in cdata.get("expressions", {}).values():
@@ -1254,15 +1358,15 @@ def run_app():
             fps = full_audio["fps"]
             min_frame = full_audio["min_frame"]
             max_frame = full_audio["max_frame"]
-            hold_ms = int(itm["HoldSlider"].Value)
+            hold = var_hold_ms.get()
 
             # 3. Batched timeline overwrite
-            if itm["OverwriteCheck"].Checked:
+            if var_overwrite.get():
                 clear_tracks_in_range_batched(timeline, [base_track, talk_track], min_frame, max_frame)
 
             total_cuts_made = 0
 
-            # 4. Splicing loop (pure in-memory slicing)
+            # 4. Splicing loop
             for z_idx, (z_start, z_end, z_expr) in enumerate(zones):
                 expr_dict = cdata.get("expressions", {}).get(z_expr, {})
                 idle_path = os.path.abspath(expr_dict.get("idle_png", ""))
@@ -1298,7 +1402,7 @@ def run_app():
                 idx_start = max(0, z_start - min_frame)
                 idx_end = min(len(all_states), z_end - min_frame)
                 zone_states = all_states[idx_start:idx_end]
-                speech_segments = extract_segments_from_states(zone_states, fps, hold_ms=hold_ms)
+                speech_segments = extract_segments_from_states(zone_states, fps, hold_ms=hold)
 
                 if speech_segments:
                     talk_clips = []
@@ -1334,17 +1438,37 @@ def run_app():
                         total_cuts_made += len(new_talk)
 
             set_status(
-                f"Done! Fast-spliced <b>{len(zones)} zones</b> with {total_cuts_made} cuts in one pass.",
+                f"Done! Fast-spliced {len(zones)} zones with {total_cuts_made} cuts in one pass.",
                 "#4CAF50"
             )
         except Exception as e:
             set_status(f"Generation Error: {str(e)}", "#F44336")
-    win.On.GenerateBtn.Clicked = _generate_clicked
+    btn_generate.config(command=_generate)
 
-    # Show window
-    win.Show()
-    disp.RunLoop()
-    win.Hide()
+    # Window close handler
+    def _on_close():
+        save_ui_to_config()
+        root.destroy()
+    root.protocol("WM_DELETE_WINDOW", _on_close)
 
-if __name__ == "__main__":
-    run_app()
+    # Initial load
+    refresh_characters_ui()
+
+    root.mainloop()
+
+if __name__ == "__main__" or "resolve" in globals() or "fusion" in globals() or "fu" in globals():
+    try:
+        run_app()
+    except Exception as e:
+        import traceback
+        err_msg = traceback.format_exc()
+        print(f"[YapPNG Fatal Error]\n{err_msg}")
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            err_root = tk.Tk()
+            err_root.withdraw()
+            messagebox.showerror("YapPNG Launch Error", f"Failed to start YapPNG:\n\n{err_msg}")
+            err_root.destroy()
+        except Exception:
+            pass
