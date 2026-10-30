@@ -1070,7 +1070,7 @@ def run_app():
         else:
             return [(tl_start, tl_end, default_expr)]
 
-    # Single-pass optimized audio extraction for all zones combined
+    # Multi-clip timeline-aligned audio extraction
     def extract_full_audio_for_zones(zones):
         proj = resolve_app.GetProjectManager().GetCurrentProject()
         timeline = proj.GetCurrentTimeline()
@@ -1078,55 +1078,83 @@ def run_app():
 
         min_frame = min(z[0] for z in zones)
         max_frame = max(z[1] for z in zones)
+        total_tl_frames = max(1, max_frame - min_frame)
 
         audio_src_type = itm["AudioSourceCombo"].CurrentIndex
-        pcm_bytes = None
+        thresh_db = -int(itm["ThreshSlider"].Value)
+        shout_thresh_db = -int(itm["ShoutSlider"].Value)
+        enable_shout = bool(itm["ShoutCheck"].Checked)
+
+        all_states = [0] * total_tl_frames
+        sample_pcm_for_noise = None
 
         if audio_src_type == 1:
             file_path = itm["CustomAudioCtrl"].Text.strip()
             if not os.path.isfile(file_path):
                 raise FileNotFoundError(f"Custom audio file does not exist: {file_path}")
-            duration_sec = (max_frame - min_frame) / fps
+            duration_sec = total_tl_frames / fps
             pcm_bytes = extract_pcm_from_file(file_path, start_sec=0.0, duration_sec=duration_sec)
+            sample_pcm_for_noise = pcm_bytes
+            db_array = compute_frame_db_vectorized(pcm_bytes, 16000, fps)
+            clip_states = classify_frame_states(db_array, thresh_db, shout_thresh_db, enable_shout)
+            n_copy = min(total_tl_frames, len(clip_states))
+            all_states[:n_copy] = clip_states[:n_copy]
         else:
             track_idx = int(itm["AudioTrackSpin"].Value)
             items = timeline.GetItemListInTrack("audio", track_idx)
             if not items:
                 raise RuntimeError(f"No audio clips found on Audio Track {track_idx}.")
 
-            chosen_item = None
+            # Find ALL clips that overlap with [min_frame, max_frame]
+            overlapping_clips = []
             for itm_clip in items:
                 c_start = itm_clip.GetStart()
                 c_end = itm_clip.GetEnd()
                 if c_end > min_frame and c_start < max_frame:
-                    chosen_item = itm_clip
-                    break
+                    overlapping_clips.append(itm_clip)
 
-            if not chosen_item:
-                raise RuntimeError(f"No audio clip spans the target range on Audio Track {track_idx}.")
+            if not overlapping_clips:
+                raise RuntimeError(f"No audio clips found in range {min_frame}-{max_frame} on Audio Track {track_idx}.")
 
-            clip_start = chosen_item.GetStart()
-            clip_end = chosen_item.GetEnd()
-            source_start = chosen_item.GetSourceStartFrame()
-            media_pool_item = chosen_item.GetMediaPoolItem()
-            file_path = media_pool_item.GetClipProperty("File Path")
+            for itm_clip in overlapping_clips:
+                c_start = itm_clip.GetStart()
+                c_end = itm_clip.GetEnd()
+                source_start = itm_clip.GetSourceStartFrame()
+                media_pool_item = itm_clip.GetMediaPoolItem()
+                if not media_pool_item:
+                    continue
+                file_path = media_pool_item.GetClipProperty("File Path")
+                if not file_path or not os.path.isfile(file_path):
+                    continue
 
-            overlap_start = max(min_frame, clip_start)
-            overlap_end = min(max_frame, clip_end)
-            source_offset_frame = source_start + (overlap_start - clip_start)
+                overlap_start = max(min_frame, c_start)
+                overlap_end = min(max_frame, c_end)
+                if overlap_end <= overlap_start:
+                    continue
 
-            start_sec = source_offset_frame / fps
-            dur_sec = (overlap_end - overlap_start) / fps
+                source_offset_frame = source_start + (overlap_start - c_start)
+                start_sec = source_offset_frame / fps
+                dur_sec = (overlap_end - overlap_start) / fps
 
-            pcm_bytes = extract_pcm_from_file(file_path, start_sec=start_sec, duration_sec=dur_sec)
+                pcm_bytes = extract_pcm_from_file(file_path, start_sec=start_sec, duration_sec=dur_sec)
+                if sample_pcm_for_noise is None and len(pcm_bytes) > 0:
+                    sample_pcm_for_noise = pcm_bytes
 
-        db_array = compute_frame_db_vectorized(pcm_bytes, 16000, fps)
+                db_array = compute_frame_db_vectorized(pcm_bytes, 16000, fps)
+                clip_states = classify_frame_states(db_array, thresh_db, shout_thresh_db, enable_shout)
+
+                dest_start = max(0, overlap_start - min_frame)
+                dest_end = min(total_tl_frames, overlap_end - min_frame)
+                slice_len = dest_end - dest_start
+                if slice_len > 0 and len(clip_states) > 0:
+                    all_states[dest_start:dest_end] = clip_states[:slice_len]
+
         return {
             "fps": fps,
             "min_frame": min_frame,
             "max_frame": max_frame,
-            "db_array": db_array,
-            "pcm_bytes": pcm_bytes
+            "all_states": all_states,
+            "sample_pcm": sample_pcm_for_noise
         }
 
     def _calibrate_clicked(ev):
@@ -1134,7 +1162,9 @@ def run_app():
             set_status("Sampling background audio noise...", "#03A9F4")
             zones = get_timeline_zones()
             full_audio = extract_full_audio_for_zones(zones)
-            pcm = full_audio["pcm_bytes"]
+            pcm = full_audio.get("sample_pcm")
+            if not pcm or len(pcm) == 0:
+                raise RuntimeError("No audio samples available to calibrate.")
             noise_db, target_thresh = calibrate_noise_floor(pcm, sample_rate=16000)
             abs_val = abs(target_thresh)
             itm["ThreshSlider"].Value = abs_val
@@ -1153,17 +1183,10 @@ def run_app():
             zones = get_timeline_zones()
             full_audio = extract_full_audio_for_zones(zones)
 
-            db_array = full_audio["db_array"]
+            all_states = full_audio["all_states"]
             fps = full_audio["fps"]
             min_frame = full_audio["min_frame"]
-
-            thresh_db = -int(itm["ThreshSlider"].Value)
-            shout_thresh_db = -int(itm["ShoutSlider"].Value)
-            enable_shout = bool(itm["ShoutCheck"].Checked)
             hold_ms = int(itm["HoldSlider"].Value)
-
-            # Vectorized state classification
-            all_states = classify_frame_states(db_array, thresh_db, shout_thresh_db, enable_shout)
 
             total_talk = 0
             total_shout = 0
@@ -1189,7 +1212,7 @@ def run_app():
     def _generate_clicked(ev):
         try:
             save_current_ui_to_config()
-            set_status("Single-pass audio decode & media pre-caching...", "#03A9F4")
+            set_status("Timeline audio decode & media pre-caching...", "#03A9F4")
 
             proj = resolve_app.GetProjectManager().GetCurrentProject()
             timeline = proj.GetCurrentTimeline()
@@ -1225,19 +1248,13 @@ def run_app():
                         all_paths.append(z_exp[k])
             media_cache = build_media_cache(media_pool, folder, all_paths)
 
-            # 2. Extract full audio in single pass
+            # 2. Extract full audio aligned to timeline frames
             full_audio = extract_full_audio_for_zones(zones)
-            db_array = full_audio["db_array"]
+            all_states = full_audio["all_states"]
             fps = full_audio["fps"]
             min_frame = full_audio["min_frame"]
             max_frame = full_audio["max_frame"]
-
-            thresh_db = -int(itm["ThreshSlider"].Value)
-            shout_thresh_db = -int(itm["ShoutSlider"].Value)
-            enable_shout = bool(itm["ShoutCheck"].Checked)
             hold_ms = int(itm["HoldSlider"].Value)
-
-            all_states = classify_frame_states(db_array, thresh_db, shout_thresh_db, enable_shout)
 
             # 3. Batched timeline overwrite
             if itm["OverwriteCheck"].Checked:
