@@ -2,6 +2,8 @@
 
 > **Voice-activated PNG sprite animator (PNGtuber) plugin built natively for DaVinci Resolve Free & Studio.**
 
+**[English](README.md)** | [Bahasa Indonesia](README_ID.md)
+
 [![Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free%20%26%20Studio%20(18%2C%2019%2C%2021%2B)-black?logo=davinci-resolve)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![Python](https://img.shields.io/badge/Python-3.8%20--%203.12-blue?logo=python)](https://python.org)
 [![NumPy](https://img.shields.io/badge/Acceleration-NumPy%20Vectorized%20VAD-green?logo=numpy)](https://numpy.org)

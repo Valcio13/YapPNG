@@ -2,6 +2,8 @@
 
 A step-by-step tutorial covering everything from preparing your sprite art to multi-character podcast editing and marker-driven expression automation in DaVinci Resolve.
 
+**[English Guide](WORKFLOW_GUIDE.md)** | [Panduan Bahasa Indonesia](WORKFLOW_GUIDE_ID.md)
+
 ---
 
 ## 🎨 1. Sprite Art Organization
