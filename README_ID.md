@@ -1,6 +1,6 @@
 # 🎙️ YapPNG
 
-> **Plugin animator sprite PNG (PNGtuber) berbasis suara yang berjalan langsung di DaVinci Resolve Free & Studio.**
+> **Plugin PNGtuber otomatis buat DaVinci Resolve — deteksi suara langsung dari timeline, gak pake ribet!**
 
 [English](README.md) | **[Bahasa Indonesia](README_ID.md)**
 
@@ -9,103 +9,104 @@
 [![NumPy](https://img.shields.io/badge/Akselerasi-NumPy%20Vectorized%20VAD-green?logo=numpy)](https://numpy.org)
 [![License](https://img.shields.io/badge/Lisensi-MIT-purple.svg)](LICENSE)
 
-**YapPNG** mengubah rekaman suara atau mikrofon Anda menjadi animasi karakter PNGtuber secara otomatis langsung di timeline Edit DaVinci Resolve. Plugin ini mendeteksi aktivitas suara secara instan tanpa perlu API cloud atau transkripsi yang lambat, lalu memotong dan menempatkan sprite Diam (Idle), Bicara (Talk), dan Berteriak (Shout) dengan animasi pantulan (bounce), penempatan posisi layar yang presisi, serta efek peredupan (dimming) otomatis bergaya podcast.
+**YapPNG** adalah tool buat para konten kreator, podcaster, dan vtuber/pngtuber yang ngedit di DaVinci Resolve. Tool ini bakal ngebaca suara lu di timeline, terus otomatis motong dan masang sprite karakter pas lagi diem (Idle), ngomong (Talk), sampai teriak (Shout) — lengkap sama efek mantul (*bounce*), posisi layar yang pas, dan efek redup (*dimming*) ala podcast Discord.
+
+Gak perlu API cloud, gak perlu nunggu transkripsi teks yang lemot, semuanya diproses lokal dalam hitungan milidetik!
 
 ---
 
-## ✨ Fitur Utama
+## ✨ Fitur Keren
 
-* 🎛️ **Berjalan Langsung di Dalam Resolve:** Dibuka langsung dari menu `Workspace > Scripts > Edit > YapPNG` menggunakan antarmuka Qt `UIManager` bawaan Resolve. Kompatibel dengan **DaVinci Resolve Free & Studio**.
-* ⚡ **Deteksi Suara VAD Super Cepat:** Menganalisis rekaman suara 5 menit hanya dalam waktu **~27 milidetik** menggunakan akselerasi prefix-sum NumPy (dengan fallback otomatis ke Python murni).
-* 👥 **Dukungan Multi-Karakter (Podcast / Collab):** Rute trek audio & video terpisah untuk tiap karakter (contoh: Host di A1/V2/V3, Tamu di A2/V4/V5).
-* 📂 **Pemindai Folder Otomatis:** Cukup pilih folder karakter dan klik **`📂 Auto-Scan`** untuk mengenali seluruh ekspresi (`idle`, `talk`, `shout`) secara otomatis.
-* 🏷️ **Otomasi Ekspresi Berdasarkan Marker:** Tekan `M` pada timeline saat mendengarkan audio untuk membuat penanda ekspresi (`Happy`, `Angry`, `Neutral`). YapPNG akan memotong dan mengganti ekspresi sepanjang video 60+ menit hanya dengan **sekali klik**!
-* 🦘 **Efek Pantulan "PNGtuber Bounce":** Menambahkan animasi loncatan vertikal dan denyut skala halus saat karakter berbicara, dengan lompatan $+60\%$ lebih tinggi saat berteriak.
-* 📢 **Deteksi Suara Keras / Berteriak (Shout Trigger):** Mendeteksi teriakan, tawa keras, atau lonjakan volume ($>-12\text{ dB}$) untuk otomatis berganti ke sprite mulut berteriak/terbuka lebar.
-* 💡 **Peredupan Karakter Pasif (Inactive Dimming):** Karakter yang sedang diam/mendengarkan akan otomatis meredup ($70\%$ opacity), dan langsung menyala terang $100\%$ begitu mulai berbicara.
-* 📐 **Pengaturan Tata Letak & Ambil Posisi Layar:** Dilengkapi preset (*Kiri*, *Kanan*, *Tengah Bawah*) serta tombol **`📥 Fetch from Timeline Clip`** untuk menyalin posisi dan ukuran langsung dari viewer DaVinci Resolve.
-* 🎙️ **Kalibrasi Kebisingan Sekali Klik:** Mengukur kebisingan ruangan (noise floor) dan menyesuaikan sensitivitas ambang batas suara secara otomatis.
-* 🧹 **Mode Timpa Bersih (Clean Overwrite):** Mengganti potongan klip lama pada rentang In/Out secara rapi tanpa merusak susunan klip lainnya di timeline.
+* 🎛️ **Langsung di Dalem Resolve:** Tinggal buka dari menu `Workspace > Scripts > Edit > YapPNG`. Support **DaVinci Resolve Free maupun Studio**.
+* ⚡ **Deteksi Suara Ngebut:** Berkat akselerasi NumPy, audio 5 menit bisa di-scan cuma dalam waktu **~27 milidetik**!
+* 👥 **Bisa Banyak Karakter Sekaligus:** Mau bikin video podcast atau collab? Tinggal atur track audio dan video masing-masing (misal: Host di A1/V2/V3, Bintang Tamu di A2/V4/V5).
+* 📂 **Auto-Scan Folder:** Cukup pilih folder karakter lu, klik **`📂 Auto-Scan`**, semua ekspresi (`idle`, `talk`, `shout`) langsung kebaca otomatis.
+* 🏷️ **Ganti Ekspresi Pake Marker Timeline:** Buat video panjang 20–60 menit, tinggal pencet `M` di timeline terus kasih nama ekspresi (misal: `Happy`, `Angry`, `Neutral`). Klik sekali, YapPNG bakal motong dan nyesuaiin ekspresi di sepanjang video!
+* 🦘 **Efek Mantul (PNGtuber Bounce):** Biar gak kayak gambar mati, karakternya bakal otomatis lompat kecil dan nge-pulse pas lagi ngomong (dan lompat lebih heboh pas teriak!).
+* 📢 **Deteksi Teriak / Ngakak (Shout Trigger):** Pas volume audio lu tiba-tiba melonjak ($>-12\text{ dB}$), karakternya bakal otomatis ganti ke sprite mangap lebar/teriak.
+* 💡 **Efek Redup Karakter Pasif (Dimming):** Pas karakter lu lagi diem ngedengerin lawan bicara, dia bakal otomatis agak redup ($70\%$ opacity). Pas mulai ngomong lagi, langsung cling terang $100\%$.
+* 📐 **Atur Posisi Layar Gampang:** Ada preset (*Kiri*, *Kanan*, *Tengah*), plus tombol **`📥 Fetch from Timeline Clip`** — tinggal geser gambar di viewer Resolve sesuka hati, klik tombol ini, posisinya langsung kesimpen!
+* 🎙️ **Auto-Calibrate Noise Sekali Klik:** Gak usah nebak-nebak slider dB, klik tombol ini buat ngukur noise ruangan lu secara otomatis.
+* 🧹 **Clean Overwrite:** Kalo mau re-do atau ganti ekspresi di area yang sama, klip lama bakal otomatis diganti secara bersih tanpa numpuk-numpuk.
 
 ---
 
-## 🎬 Mekanisme Pemotongan Timeline (Dual-Track Overlay)
+## 🎬 Cara Kerjanya di Timeline
 
-YapPNG menggunakan sistem penumpukan dua trek video yang non-destruktif:
+YapPNG pake sistem 2 track video yang aman banget dan gak ngerusak timeline:
 
 ```text
-Trek Video 3 (Bicara):        [ Klip Bicara / Teriak ]       [ Klip Bicara / Teriak ]
-Trek Video 2 (Diam)  : [================== Klip Diam Menyambung ==================]
-Trek Audio 1 (Suara) : [~~~~ "Halo semuanya!" ~~~~]          [~~~~ "Ayo mulai!" ~~~~]
+Video Track 3 (Bicara):        [ Klip Ngomong / Teriak ]       [ Klip Ngomong / Teriak ]
+Video Track 2 (Diem)  : [================== Klip Diem Nyambung Terus ==================]
+Audio Track 1 (Suara) : [~~~~ "Halo ges balik lagi!" ~~~~]     [~~~~ "Gokil banget!" ~~~~]
 ```
 
-* **Saat Hening / Mendengarkan:** Klip sprite Diam (Idle) tampil di bawah dengan opacity santai ($70\%$).
-* **Saat Berbicara:** Potongan klip Bicara (Talk/Shout) menimpa di atasnya dengan opacity terang $100\%$ dan efek animasi pantulan.
-* **100% Dapat Diedit:** Klip hasil pemotongan adalah klip video timeline biasa, sehingga Anda bebas memotong, menggeser, atau menghapusnya menggunakan alat bawaan Resolve.
+* **Pas lagi diem / nyimak:** Gambar karakter yang mingkem (Idle) selalu ada di Track 2 dengan opacity santai ($70\%$).
+* **Pas lagi ngomong:** Klip karakter yang mangap (Talk/Shout) otomatis numpuk di Track 3 dengan opacity $100\%$ plus efek mantul.
+* **Gampang Diutak-atik:** Karena ini klip timeline biasa, lu bebas nge-trim, nge-geser, atau ngapus potongannya pake tool Resolve biasa.
 
 ---
 
-## 🚀 Panduan Memulai Cepat
+## 🚀 Gas Coba (Quick Start)
 
-### 1. Instalasi
-Jalankan skrip instalasi:
-* **Windows:** Klik ganda file `install_plugin.bat`.
-* **Manual / macOS / Linux:** Salin file `YapPNG.py` ke folder skrip DaVinci Resolve:
+### 1. Pasang Plugin
+* **Windows:** Tinggal klik 2x file `install_plugin.bat`.
+* **Manual / Mac / Linux:** Copy file `YapPNG.py` ke folder script Resolve:
   * **Windows:** `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit\`
-  * **macOS:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
+  * **Mac:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
   * **Linux:** `~/.local/share/DaVinciResolve/Fusion/Scripts/Edit/`
 
 ### 2. Buka di DaVinci Resolve
-Buka proyek apa pun di DaVinci Resolve, lalu buka menu:
+Buka project Resolve lu, terus pilih menu:
 > **`Workspace` > `Scripts` > `Edit` > `YapPNG`**
 
-### 3. Memotong Karakter Pertama Anda
-1. Pada jendela YapPNG, pilih folder karakter Anda pada bagian **Character Folder** (atau gunakan contoh bawaan di [`test_assets/Character_Host`](test_assets/Character_Host)).
+### 3. Eksekusi Karakter Pertama
+1. Di panel YapPNG, pilih folder karakter lu di bagian **Character Folder** (bisa coba pake folder contoh di [`test_assets/Character_Host`](test_assets/Character_Host)).
 2. Klik tombol **`📂 Auto-Scan`**.
-3. Tentukan titik Mark In (`I`) dan Mark Out (`O`) pada timeline Anda.
-4. Klik tombol **`🎙️ Auto-Calibrate`** untuk mengkalibrasi sensitivitas mikrofon Anda.
-5. Klik tombol **`▶ Splicing To Timeline`**!
+3. Tandai area timeline pake **`I` (Mark In)** dan **`O` (Mark Out)**.
+4. Klik **`🎙️ Auto-Calibrate`** biar pas sama suara mic lu.
+5. Klik **`▶ Splicing To Timeline`** dan liat hasilnya!
 
 ---
 
-## 📁 Struktur Repositori
+## 📁 Struktur File Repositori
 
 ```text
 YapPNG/
-├── YapPNG.py                   # Skrip utama plugin DaVinci Resolve (v2.2 Ultra)
-├── install_plugin.bat          # Skrip installer otomatis untuk Windows
+├── YapPNG.py                   # Script utama plugin DaVinci Resolve (v2.2 Ultra)
+├── install_plugin.bat          # Installer otomatis buat Windows
 ├── docs/
-│   ├── ARCHITECTURE.md         # Dokumentasi teknis & algoritma VAD (Bahasa Inggris)
-│   ├── WORKFLOW_GUIDE.md       # Panduan alur kerja lengkap (Bahasa Inggris)
-│   └── WORKFLOW_GUIDE_ID.md    # Panduan alur kerja lengkap (Bahasa Indonesia)
-├── test_assets/                # Aset sampel karakter siap pakai
-│   ├── Character_Host/         # Karakter Host (Sprite Neutral, Happy, Angry)
-│   ├── Character_Guest/        # Karakter Tamu (Sprite Neutral, Smug, Surprised)
-│   └── test_voice.wav          # Rekaman suara sampel untuk pengujian
+│   ├── ARCHITECTURE.md         # Penjelasan teknis & matematika VAD (English)
+│   ├── WORKFLOW_GUIDE.md       # Panduan lengkap alur kerja (English)
+│   └── WORKFLOW_GUIDE_ID.md    # Panduan lengkap alur kerja (Bahasa Indonesia)
+├── test_assets/                # Karakter sampel siap tes
+│   ├── Character_Host/         # Karakter Host (Neutral, Happy, Angry)
+│   ├── Character_Guest/        # Karakter Bintang Tamu (Neutral, Smug, Surprised)
+│   └── test_voice.wav          # Audio contoh buat ngetes
 ├── .gitignore
 ├── LICENSE
-├── README.md                   # Dokumentasi Bahasa Inggris
-└── README_ID.md                # Dokumentasi Bahasa Indonesia
+├── README.md                   # README English
+└── README_ID.md                # README Bahasa Indonesia
 ```
 
 ---
 
-## 📚 Panduan Lengkap
+## 📚 Bacaan Lebih Lanjut
 
-* 📖 **[Panduan Alur Kerja Lengkap (Bahasa Indonesia)](docs/WORKFLOW_GUIDE_ID.md)**: Pelajari cara setup multi-karakter podcast, automasi marker, dan konvensi penamaan gambar.
-* 🏛️ **[Arsitektur Teknis & Matematika VAD](docs/ARCHITECTURE.md)**: Penjelasan mendalam tentang algoritma prefix-sum energy, smoothing histeresis, dan API Resolve.
+* 📖 **[Panduan Alur Kerja Lengkap](docs/WORKFLOW_GUIDE_ID.md)**: Tutorial lengkap cara bikin video podcast 2 orang, automasi marker, dan aturan penamaan gambar.
+* 🏛️ **[Dokumentasi Arsitektur & VAD](docs/ARCHITECTURE.md)**: Buat yang penasaran sama jeroan teknis algoritma prefix-sum energy & API Resolve.
 
 ---
 
-## ⚙️ Persyaratan Sistem
+## ⚙️ Syarat Penggunaan
 
-* **DaVinci Resolve:** Versi 18, 19, atau 21+ (Edisi Free maupun Studio).
-* **Python:** Python 3.8+ (DaVinci Resolve akan menggunakan instalasi Python yang ada di komputer Anda).
-* **FFmpeg:** Terpasang di sistem PATH Anda (digunakan untuk membaca stream audio dengan cepat).
-* **NumPy (Opsional):** Untuk akselerasi pemrosesan audio di bawah 30 milidetik.
+* **DaVinci Resolve:** Versi 18, 19, atau 21+ (Free maupun Studio).
+* **Python:** Python 3.8+ (Resolve otomatis pake Python yang keinstall di PC lu).
+* **FFmpeg:** Udah terpasang di path sistem (buat convert stream audio).
+* **NumPy (Opsional):** Buat ngebutin scan audio di bawah 30 milidetik.
 
 ---
 
 ## 📄 Lisensi
 
-Didistribusikan di bawah Lisensi MIT. Lihat file [LICENSE](LICENSE) untuk informasi lebih lanjut.
+Proyek ini open-source di bawah [Lisensi MIT](LICENSE). Bebas lu pake dan modifikasi!

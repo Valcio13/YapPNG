@@ -1,19 +1,19 @@
-# 📖 Panduan Alur Kerja YapPNG (Bahasa Indonesia)
+# 📖 Panduan Alur Kerja YapPNG
 
-Panduan langkah demi langkah menggunakan **YapPNG** di DaVinci Resolve: mulai dari persiapan gambar sprite karakter, setup podcast multi-karakter, hingga automasi ekspresi berbasis marker untuk video berdurasi panjang.
+Panduan santai cara pake **YapPNG** di DaVinci Resolve: dari nyiapin gambar karakter, bikin podcast berdua, sampai motong ekspresi otomatis pake marker di video panjang.
 
 [English Guide](WORKFLOW_GUIDE.md) | **[Panduan Bahasa Indonesia](WORKFLOW_GUIDE_ID.md)**
 
 ---
 
-## 🎨 1. Menyiapkan Folder & Gambar Sprite Karakter
+## 🎨 1. Aturan Penamaan Gambar Karakter
 
-YapPNG dapat mengenali semua ekspresi karakter Anda secara otomatis asalkan Anda mengikuti format penamaan file yang standar.
+YapPNG udah pinter buat ngenalin ekspresi karakter lu secara otomatis, asal format nama filenya bener.
 
-### Struktur Folder yang Disarankan:
+### Contoh Susunan Folder yang Rapi:
 
 ```text
-Proyek_PNGtuber/
+Project_PNGtuber/
 ├── Characters/
 │   ├── Host/
 │   │   ├── neutral_idle.png
@@ -34,82 +34,81 @@ Proyek_PNGtuber/
 │       └── surprised_shout.png
 ```
 
-### Kata Kunci Nama File yang Didukung:
-* **Diam / Mulut Tertutup (Idle):** `_idle`, `_closed`, `_close`, `_mouth_closed`, `_shut`
-* **Bicara / Mulut Terbuka (Talk):** `_talk`, `_talking`, `_open`, `_mouth_open`, `_speaking`
-* **Berteriak / Mulut Sangat Lebar (Shout):** `_shout`, `_scream`, `_yell`, `_loud`, `_wide`
+### Kata Kunci Nama File:
+* **Diem / Mingkem (Idle):** `_idle`, `_closed`, `_close`, `_mouth_closed`, `_shut`
+* **Ngomong / Mangap (Talk):** `_talk`, `_talking`, `_open`, `_mouth_open`, `_speaking`
+* **Teriak / Mangap Lebar (Shout):** `_shout`, `_scream`, `_yell`, `_loud`, `_wide`
 
-*(Anda juga bisa menggunakan subfolder per ekspresi, contoh: `Host/happy/idle.png` dan `Host/happy/talk.png`!)*
+*(Kalo mau dipisah pake subfolder juga bisa banget, misal: `Host/happy/idle.png` dan `Host/happy/talk.png`!)*
 
 ---
 
-## 🎙️ 2. Setup untuk Satu Karakter
+## 🎙️ 2. Setup Buat Satu Karakter
 
-1. Buka DaVinci Resolve dan pastikan rekaman suara Anda berada di **Trek Audio 1 (A1)**.
-2. Buka menu atas: **`Workspace` > `Scripts` > `Edit` > `YapPNG`**.
-3. Di bagian **1. Character Profile**, pilih folder karakter Anda lalu klik tombol **`📂 Auto-Scan`**.
+1. Buka project DaVinci Resolve lu, pastiin audio suara ada di **Track Audio 1 (A1)**.
+2. Buka menu: **`Workspace` > `Scripts` > `Edit` > `YapPNG`**.
+3. Di bagian **1. Character Profile**, pilih folder karakter lu terus klik tombol **`📂 Auto-Scan`**.
 4. Atur posisi layar karakter di bagian **3. Placement, Dynamics & Dimming**:
-   - Pilih preset (misal `Center Stage` atau `Left Side`).
-   - Atau geser dan ubah ukuran klip karakter langsung di viewer DaVinci Resolve, lalu klik tombol **`📥 Fetch from Timeline Clip`**.
-5. Tentukan rentang bagian video menggunakan tombol **`I` (Mark In)** dan **`O` (Mark Out)** di timeline Resolve.
-6. Klik tombol **`🎙️ Auto-Calibrate`** untuk mengukur kebisingan ruangan dan mikrofon Anda secara otomatis.
-7. Klik tombol **`▶ Splicing To Timeline`**!
+   - Bisa pilih preset kayak `Left Side` atau `Center Stage`.
+   - Atau geser langsung gambar karakter di viewer DaVinci Resolve, terus klik tombol **`📥 Fetch from Timeline Clip`**. YapPNG bakal langsung ngerekam koordinat posisinya!
+5. Tandai bagian audio yang mau dipotong pake **`I` (Mark In)** dan **`O` (Mark Out)** di timeline.
+6. Klik tombol **`🎙️ Auto-Calibrate`** biar sensitivitasnya pas sama kebisingan mic lu.
+7. Klik **`▶ Splicing To Timeline`**, dan selesai!
 
 ---
 
-## 👥 3. Setup Podcast / Kolaborasi Multi-Karakter
+## 👥 3. Setup Podcast / Collab Berdua (Host vs Tamu)
 
-Jika Anda membuat video obrolan, podcast, atau gameplay berdua (contoh: Host di sebelah kiri, Tamu di sebelah kanan):
+Kalo lagi bikin konten ngobrol berdua kayak podcast Discord (misal: Host di kiri, Tamu di kanan):
 
-### Langkah A: Konfigurasi Karakter Host
-1. Pilih **`Character_Host`** pada dropdown karakter.
+### Langkah A: Setting Karakter Host
+1. Pilih **`Character_Host`** di dropdown karakter.
 2. Di bagian **Audio & Video Track Routing**:
-   - Audio Track: **`Track 1`** (Mikrofon Host)
+   - Audio Track: **`Track 1`** (Mic si Host)
    - Idle Video Track: **`Track 2`**
    - Talk Video Track: **`Track 3`**
 3. Di bagian **Placement**:
    - Layout Preset: **`Left Side`**
-   - Flip Horizontal (Mirror): **Jangan dicentang** (menghadap ke kanan arah tamu)
+   - Flip Horizontal (Mirror): **Gak usah dicentang** (biar ngadep kanan ke arah tamu)
 4. Aktifkan **`🦘 Bounce Hop`** dan **`💡 Inactive Dim`** ($70\%$).
 
-### Langkah B: Konfigurasi Karakter Tamu
-1. Pilih **`Character_Guest`** (atau klik `+ New Char` untuk membuat baru).
+### Langkah B: Setting Karakter Tamu
+1. Pilih **`Character_Guest`** (atau klik `+ New Char` kalo mau nambah baru).
 2. Di bagian **Audio & Video Track Routing**:
-   - Audio Track: **`Track 2`** (Mikrofon Tamu)
+   - Audio Track: **`Track 2`** (Mic si Tamu)
    - Idle Video Track: **`Track 4`**
    - Talk Video Track: **`Track 5`**
 3. Di bagian **Placement**:
    - Layout Preset: **`Right Side`**
-   - Flip Horizontal (Mirror): **Centang** (menghadap ke kiri arah host)
+   - Flip Horizontal (Mirror): **Centang** (biar ngadep kiri ke arah host)
 4. Aktifkan **`🦘 Bounce Hop`** dan **`💡 Inactive Dim`** ($70\%$).
 
-### Langkah C: Eksekusi Pemotongan
+### Langkah C: Eksekusi
 1. Pilih **`Character_Host`** $\rightarrow$ Klik **`▶ Splicing To Timeline`**.
 2. Pilih **`Character_Guest`** $\rightarrow$ Klik **`▶ Splicing To Timeline`**.
-3. Kedua karakter sekarang berdampingan di video! Saat salah satu berbicara, karakternya akan melompat dan menyala terang $100\%$, sedangkan karakter yang sedang mendengarkan akan meredup $70\%$ secara natural.
+3. Hasilnya: kedua karakter bakal mejeng barengan di timeline! Pas Host ngomong, karakternya bakal lompat dan terang $100\%$, sementara Tamu otomatis agak redup nyimak. Pas Tamu bales ngomong, gantian Tamu yang terang dan lompat!
 
 ---
 
-## 🏷️ 4. Otomasi Ekspresi Berdasarkan Marker (Video Panjang)
+## 🏷️ 4. Ganti Ekspresi Pake Marker Timeline (Buat Video Panjang)
 
-Untuk video berdurasi 20–60 menit, Anda tidak perlu menandai Mark In / Out puluhan kali:
+Kalo video lu panjang (15–60 menit), nentuin In/Out puluhan kali pasti pegel banget. Pake cara ini biar sat-set:
 
-1. Dengarkan rekaman Anda sambil memutar timeline di DaVinci Resolve.
-2. Setiap kali ekspresi karakter berubah, tekan tombol **`M`** untuk membuat penanda (marker):
-   - Beri nama marker sesuai nama ekspresi: `Happy`, `Angry`, `Neutral`, `Smug`, dll.
-3. Di jendela YapPNG, ubah **Placement Mode** menjadi:
+1. Sambil dengerin timeline di Resolve, lu pencet tombol **`M`** di keyboard tiap kali mau ganti ekspresi:
+   - Kasih nama markernya sesuai ekspresi: misal `Happy`, `Angry`, `Neutral`, `Smug`.
+2. Di jendela YapPNG, ganti **Placement Mode** jadi:
    **`🏷️ Marker-Driven Expressions`**.
-4. Klik tombol **`▶ Splicing To Timeline`**.
-5. YapPNG akan membagi seluruh timeline Anda menjadi beberapa zona sesuai marker yang Anda buat, lalu menempatkan ekspresi yang tepat di sepanjang video dalam **sekali klik**!
+3. Klik tombol **`▶ Splicing To Timeline`**.
+4. YapPNG bakal ngebagi timeline lu sesuai marker-marker tadi, terus otomatis masang ekspresi yang bener di sepanjang video dalam **sekali klik**!
 
 ---
 
-## ⚙️ 5. Panduan Sensitivitas & Dinamika Suara
+## ⚙️ 5. Contekan Setelan Slider
 
-| Parameter | Rekomendasi | Penjelasan |
+| Setting | Rekomendasi | Penjelasan |
 | :--- | :--- | :--- |
-| **Threshold (dB)** | `-28 dB` s/d `-34 dB` | Batas volume deteksi suara bicara. Klik `Auto-Calibrate` agar terisi otomatis. |
-| **Shouting Trigger (dB)**| `-10 dB` s/d `-14 dB` | Pemicu sekunder saat berteriak, tertawa keras, atau berseru. |
-| **Mouth Hold (ms)** | `120 ms` s/d `150 ms` | Menahan mulut tetap terbuka di jeda antar suku kata agar tidak berkedip cepat. |
-| **Bounce Height (px)** | `15 px` s/d `22 px` | Ketinggian lompatan animasi saat berbicara. Suara teriakan otomatis melompat $1.6\times$ lebih tinggi. |
-| **Dim Opacity (%)** | `65%` s/d `75%` | Tingkat transparansi/keredupan saat karakter diam mendengarkan lawan bicara. |
+| **Threshold (dB)** | `-28 dB` s/d `-34 dB` | Batas minimal suara biar mulut kebuka. Klik `Auto-Calibrate` biar otomatis pas. |
+| **Shouting Trigger (dB)**| `-10 dB` s/d `-14 dB` | Batas suara teriak / ketawa ngakak biar mangap lebar. |
+| **Mouth Hold (ms)** | `120 ms` s/d `150 ms` | Nahan mulut tetep kebuka di antara suku kata biar gak kedip-kedip heboh. |
+| **Bounce Height (px)** | `15 px` s/d `22 px` | Tinggi lompatan pas ngomong. Pas teriak otomatis $1.6\times$ lebih tinggi. |
+| **Dim Opacity (%)** | `65%` s/d `75%` | Tingkat redup pas karakter lagi diem ngedengerin lawan bicara. |
