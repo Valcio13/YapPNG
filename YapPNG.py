@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 =============================================================================
-PNG Voice Animator for DaVinci Resolve (v2.2 Ultra-Optimized Edition)
+YapPNG for DaVinci Resolve (v2.2 Ultra-Optimized Edition)
 - Vectorized VAD Engine (NumPy Prefix-Sum + Array Fallback)
 - Single-Pass Audio Decoding & In-Memory Slicing
 - Pre-Cached Media Pool Item Resolution
@@ -68,7 +68,7 @@ CONFIG_DIR = os.path.join(
     os.getenv('APPDATA', os.path.expanduser('~')),
     'Blackmagic Design', 'DaVinci Resolve', 'Support'
 )
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'PNG_Voice_Animator_config.json')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'YapPNG_config.json')
 
 DEFAULT_CONFIG = {
     "active_character": "Character_Host",
@@ -173,7 +173,7 @@ def load_config():
                 cfg.update(data)
                 return cfg
         except Exception as e:
-            print(f"[PNG Animator] Error loading config: {e}")
+            print(f"[YapPNG] Error loading config: {e}")
     return dict(DEFAULT_CONFIG)
 
 def save_config(cfg):
@@ -182,7 +182,7 @@ def save_config(cfg):
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=2)
     except Exception as e:
-        print(f"[PNG Animator] Error saving config: {e}")
+        print(f"[YapPNG] Error saving config: {e}")
 
 # ---------------------------------------------------------------------------
 # Folder Scanner for Expressions
@@ -512,14 +512,14 @@ def apply_clip_transform(clip, pan=0.0, tilt=0.0, zoom=1.0, flip_x=False, opacit
         clip.SetProperty("FlipX", bool(flip_x))
         clip.SetProperty("Opacity", float(opacity))
     except Exception as e:
-        print(f"[PNG Animator] Warning applying clip transform: {e}")
+        print(f"[YapPNG] Warning applying clip transform: {e}")
 
 # ---------------------------------------------------------------------------
 # Main GUI Window (UIManager)
 # ---------------------------------------------------------------------------
 def run_app():
     if not fusion_app:
-        print("[PNG Animator] Could not access Fusion. Please run inside DaVinci Resolve (Workspace > Scripts).")
+        print("[YapPNG] Could not access Fusion. Please run inside DaVinci Resolve (Workspace > Scripts).")
         return
 
     ui = fusion_app.UIManager
@@ -529,14 +529,14 @@ def run_app():
     perf_badge = "⚡ NumPy Accelerated" if HAVE_NUMPY else "Python Native"
 
     win = disp.AddWindow({
-        "WindowTitle": "PNG Voice Animator (v2.2 Ultra) - High-Performance Edition",
-        "ID": "PNGVoiceAnimatorWin",
+        "WindowTitle": "YapPNG - Voice-Activated PNGtuber Animator",
+        "ID": "YapPNGWin",
         "Geometry": [180, 40, 620, 940],
     }, [
         ui.VGroup({"Spacing": 6, "Margin": 10}, [
             # Header
             ui.Label({
-                "Text": f"<b>🎙️ PNG Voice Animator v2.2</b> &nbsp; <small style='color:#03A9F4;'>{perf_badge}</small>",
+                "Text": f"<b>🎙️ YapPNG v2.2</b> &nbsp; <small style='color:#03A9F4;'>{perf_badge}</small>",
                 "Weight": 0,
                 "StyleSheet": "font-size: 14px;"
             }),
@@ -786,7 +786,7 @@ def run_app():
     refresh_characters_combo()
 
     def set_status(msg, color="#ddd"):
-        print(f"[PNG Animator] {msg}")
+        print(f"[YapPNG] {msg}")
         itm["StatusLabel"].Text = f"<span style='color:{color};'>{msg}</span>"
 
     def save_current_ui_to_config():
@@ -841,7 +841,7 @@ def run_app():
     def _close(ev):
         save_current_ui_to_config()
         disp.ExitLoop()
-    win.On.PNGVoiceAnimatorWin.Close = _close
+    win.On.YapPNGWin.Close = _close
 
     def _char_changed(ev):
         save_current_ui_to_config()

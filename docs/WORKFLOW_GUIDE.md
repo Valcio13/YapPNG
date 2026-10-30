@@ -44,7 +44,7 @@ My_PNGtuber_Project/
 ## 🎙️ 2. Single-Character Setup
 
 1. Open your DaVinci Resolve project. Ensure your voice track is placed on **Audio Track 1**.
-2. Go to: **`Workspace` > `Scripts` > `Edit` > `PNG_Voice_Animator`**.
+2. Go to: **`Workspace` > `Scripts` > `Edit` > `YapPNG`**.
 3. Under **Character Profile**, browse your character's folder and click **`📂 Auto-Scan`**.
 4. Set your character's screen position:
    - Pick a preset (e.g. `Center Stage` or `Left Side`).
