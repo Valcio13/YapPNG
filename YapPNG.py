@@ -489,15 +489,20 @@ def clear_tracks_in_range_batched(timeline, track_indices, min_frame, max_frame)
 
 def apply_clip_transform(clip, pan=0.0, tilt=0.0, zoom=1.0, flip_x=False, opacity=100.0):
     try:
-        clip.SetProperty("Pan", float(pan))
-        clip.SetProperty("Tilt", float(tilt))
-        clip.SetProperty("ZoomX", float(zoom))
-        clip.SetProperty("ZoomY", float(zoom))
-        clip.SetProperty("ZoomGang", True)
-        clip.SetProperty("FlipX", bool(flip_x))
-        clip.SetProperty("Opacity", float(opacity))
+        # High-performance IPC optimization: bypass redundant DaVinci Resolve calls
+        if abs(pan) > 0.01:
+            clip.SetProperty("Pan", float(pan))
+        if abs(tilt) > 0.01:
+            clip.SetProperty("Tilt", float(tilt))
+        if abs(zoom - 1.0) > 0.005:
+            clip.SetProperty("ZoomX", float(zoom))
+            clip.SetProperty("ZoomY", float(zoom))
+        if flip_x:
+            clip.SetProperty("FlipX", True)
+        if opacity < 99.0:
+            clip.SetProperty("Opacity", float(opacity))
     except Exception as e:
-        print(f"[YapPNG] Warning applying clip transform: {e}")
+        pass
 
 # ---------------------------------------------------------------------------
 # Universal Modern Dark UI (DaVinci Studio Sleek Edition)
@@ -743,8 +748,22 @@ def run_app():
             lbl_st_dot.config(fg="#ef4444")
         elif color == "#00aaff" or color == "#38bdf8":
             lbl_st_dot.config(fg="#38bdf8")
+        elif color == "#FF9800" or color == "#f59e0b":
+            lbl_st_dot.config(fg="#f59e0b")
         else:
             lbl_st_dot.config(fg="#10b981")
+
+    # Progress Bar (Appears during generation)
+    style.configure("Dark.Horizontal.TProgressbar",
+        troughcolor="#121215",
+        background="#0070f3",
+        bordercolor="#25252e",
+        lightcolor="#0070f3",
+        darkcolor="#0070f3"
+    )
+    pb_frame = tk.Frame(footer_frame, bg="#16161b")
+    pb_progress = ttk.Progressbar(pb_frame, style="Dark.Horizontal.TProgressbar", orient="horizontal", mode="determinate")
+    pb_progress.pack(fill="x")
 
     # Action Buttons Dock
     btn_dock = tk.Frame(footer_frame, bg="#16161b")
@@ -1349,6 +1368,8 @@ def run_app():
         else:
             return [(tl_start, tl_end, default_expr)]
 
+    cancel_splicing = [False]
+
     def extract_full_audio_for_zones(zones):
         if not resolve_app:
             raise RuntimeError("DaVinci Resolve connection not detected.")
@@ -1399,7 +1420,14 @@ def run_app():
             if not overlapping_clips:
                 raise RuntimeError(f"No audio clips found in range {min_frame}-{max_frame} on Audio Track {track_idx}.")
 
-            for itm_clip in overlapping_clips:
+            total_overlap = len(overlapping_clips)
+            for idx, itm_clip in enumerate(overlapping_clips):
+                if cancel_splicing[0]:
+                    break
+                if total_overlap > 1 and idx % 2 == 0:
+                    set_status(f"Phase 1/3: Reading audio clips ({idx+1}/{total_overlap})...", "#38bdf8")
+                    root.update()
+
                 c_start = itm_clip.GetStart()
                 c_end = itm_clip.GetEnd()
                 source_start = itm_clip.GetSourceStartFrame()
@@ -1458,10 +1486,17 @@ def run_app():
             set_status(f"Calibration Error: {str(e)}", "#F44336")
     btn_calibrate.config(command=_calibrate)
 
+    def _on_cancel():
+        cancel_splicing[0] = True
+        set_status("🛑 Stopping splicing... Finishing current batch.", "#f59e0b")
+        root.update()
+
     def _preview():
         try:
             save_ui_to_config()
             set_status("Analyzing audio detection...", "#00aaff")
+            root.update()
+
             zones = get_timeline_zones()
             full_audio = extract_full_audio_for_zones(zones)
 
@@ -1484,7 +1519,7 @@ def run_app():
 
             set_status(
                 f"Preview ({len(zones)} zones): Found {total_talk} Talk + {total_shout} Shout bursts "
-                f"across {total_dur_sec:.1f}s total. Ready to splice!",
+                f"across {total_dur_sec:.1f}s total ({int(total_dur_sec // 60)}m {int(total_dur_sec % 60)}s). Ready to splice!",
                 "#4CAF50"
             )
         except Exception as e:
@@ -1492,9 +1527,21 @@ def run_app():
     btn_preview.config(command=_preview)
 
     def _generate():
+        cancel_splicing[0] = False
+        start_time = time.time()
+        orig_prev_text = "🔍  Preview Detection"
+        orig_gen_text = "⚡  SPLICING TO TIMELINE"
+
         try:
             save_ui_to_config()
-            set_status("Timeline audio decode & media pre-caching...", "#00aaff")
+
+            # Switch UI into active processing mode
+            btn_generate.config(state="disabled", text="⏳  Splicing in progress...")
+            btn_preview.config(text="🛑  Stop / Cancel", command=_on_cancel, bg="#451a1d", fg="#fca5a5")
+            pb_progress['value'] = 0
+            pb_frame.pack(fill="x", padx=12, pady=(0, 6))
+            set_status("Phase 1/3: Validating timeline tracks & zones...", "#00aaff")
+            root.update()
 
             if not resolve_app:
                 raise RuntimeError("DaVinci Resolve connection not detected.")
@@ -1527,6 +1574,8 @@ def run_app():
             idle_opacity = dim_opacity if enable_dim else 100.0
 
             # 1. Pre-Cache all Media Pool items
+            set_status("Phase 1/3: Pre-caching character PNGs in Media Pool...", "#00aaff")
+            root.update()
             folder = get_media_folder(media_pool, f"PNGtuber - {char_name}")
             all_paths = []
             for z_exp in cdata.get("expressions", {}).values():
@@ -1536,6 +1585,8 @@ def run_app():
             media_cache = build_media_cache(media_pool, folder, all_paths)
 
             # 2. Extract full audio aligned to timeline frames
+            set_status("Phase 1/3: Reading audio track & decoding PCM...", "#00aaff")
+            root.update()
             full_audio = extract_full_audio_for_zones(zones)
             all_states = full_audio["all_states"]
             fps = full_audio["fps"]
@@ -1543,13 +1594,22 @@ def run_app():
             max_frame = full_audio["max_frame"]
             hold = var_hold_ms.get()
 
+            if cancel_splicing[0]:
+                set_status("Splicing cancelled by user before timeline modification.", "#f59e0b")
+                return
+
             # 3. Batched timeline overwrite
             if var_overwrite.get():
+                set_status("Phase 2/3: Clearing marked range for clean overwrite...", "#00aaff")
+                root.update()
                 clear_tracks_in_range_batched(timeline, [base_track, talk_track], min_frame, max_frame)
 
-            total_cuts_made = 0
+            # Pre-compute all speech segments to calculate total cut count
+            set_status("Phase 2/3: Calculating speech bursts...", "#00aaff")
+            root.update()
+            zone_job_list = []
+            total_expected_cuts = 0
 
-            # 4. Splicing loop
             for z_idx, (z_start, z_end, z_expr) in enumerate(zones):
                 expr_dict = cdata.get("expressions", {}).get(z_expr, {})
                 idle_path = os.path.abspath(expr_dict.get("idle_png", ""))
@@ -1567,6 +1627,37 @@ def run_app():
                 if zone_span <= 0:
                     continue
 
+                idx_start = max(0, z_start - min_frame)
+                idx_end = min(len(all_states), z_end - min_frame)
+                zone_states = all_states[idx_start:idx_end]
+                speech_segments = extract_segments_from_states(zone_states, fps, hold_ms=hold, min_speech_ms=65)
+
+                zone_job_list.append({
+                    "z_start": z_start,
+                    "z_end": z_end,
+                    "zone_span": zone_span,
+                    "idle_item": idle_item,
+                    "talk_item": talk_item,
+                    "shout_item": shout_item,
+                    "speech_segments": speech_segments
+                })
+                total_expected_cuts += len(speech_segments)
+
+            total_cuts_made = 0
+            CHUNK_SIZE = 120  # Fast batching: avoids DaVinci Resolve IPC freeze
+
+            # 4. Splicing loop with chunked updates
+            for job in zone_job_list:
+                if cancel_splicing[0]:
+                    break
+
+                z_start = job["z_start"]
+                zone_span = job["zone_span"]
+                idle_item = job["idle_item"]
+                talk_item = job["talk_item"]
+                shout_item = job["shout_item"]
+                speech_segments = job["speech_segments"]
+
                 # Place Base Idle Clip
                 idle_subclip = {
                     "mediaPoolItem": idle_item,
@@ -1581,12 +1672,7 @@ def run_app():
                     for c in new_idle:
                         apply_clip_transform(c, pan=pan, tilt=tilt, zoom=zoom, flip_x=flip_x, opacity=idle_opacity)
 
-                # Slice speech segments from precomputed states
-                idx_start = max(0, z_start - min_frame)
-                idx_end = min(len(all_states), z_end - min_frame)
-                zone_states = all_states[idx_start:idx_end]
-                speech_segments = extract_segments_from_states(zone_states, fps, hold_ms=hold)
-
+                # Process talk clips in manageable chunks
                 if speech_segments:
                     talk_clips = []
                     seg_labels = []
@@ -1604,28 +1690,57 @@ def run_app():
                         })
                         seg_labels.append(label)
 
-                    new_talk = media_pool.AppendToTimeline(talk_clips)
-                    if new_talk:
-                        for i, c in enumerate(new_talk):
-                            lbl = seg_labels[i] if i < len(seg_labels) else 'TALK'
-                            c_tilt = tilt
-                            c_zoom = zoom
-                            if enable_bounce:
-                                if lbl == 'SHOUT':
-                                    c_tilt = tilt + (bounce_px * 1.6)
-                                    c_zoom = zoom * 1.05
-                                else:
-                                    c_tilt = tilt + bounce_px
-                                    c_zoom = zoom * 1.025
-                            apply_clip_transform(c, pan=pan, tilt=c_tilt, zoom=c_zoom, flip_x=flip_x, opacity=100.0)
-                        total_cuts_made += len(new_talk)
+                    for chunk_idx in range(0, len(talk_clips), CHUNK_SIZE):
+                        if cancel_splicing[0]:
+                            break
 
-            set_status(
-                f"Done! Fast-spliced {len(zones)} zones with {total_cuts_made} cuts in one pass.",
-                "#4CAF50"
-            )
+                        chunk_items = talk_clips[chunk_idx:chunk_idx + CHUNK_SIZE]
+                        chunk_lbls = seg_labels[chunk_idx:chunk_idx + CHUNK_SIZE]
+
+                        new_talk = media_pool.AppendToTimeline(chunk_items)
+                        if new_talk:
+                            for i, c in enumerate(new_talk):
+                                lbl = chunk_lbls[i] if i < len(chunk_lbls) else 'TALK'
+                                c_tilt = tilt
+                                c_zoom = zoom
+                                if enable_bounce:
+                                    if lbl == 'SHOUT':
+                                        c_tilt = tilt + (bounce_px * 1.6)
+                                        c_zoom = zoom * 1.05
+                                    else:
+                                        c_tilt = tilt + bounce_px
+                                        c_zoom = zoom * 1.025
+                                apply_clip_transform(c, pan=pan, tilt=c_tilt, zoom=c_zoom, flip_x=flip_x, opacity=100.0)
+                            total_cuts_made += len(new_talk)
+
+                        # Non-blocking GUI update with progress bar & estimated time
+                        pct = int((total_cuts_made / max(1, total_expected_cuts)) * 100)
+                        pb_progress['value'] = pct
+                        elapsed = time.time() - start_time
+                        rate = total_cuts_made / max(1e-3, elapsed)
+                        est_rem = max(0, int((total_expected_cuts - total_cuts_made) / max(1e-3, rate)))
+                        set_status(
+                            f"⚡ Splicing: {pct}% ({total_cuts_made}/{total_expected_cuts} cuts) - Est. {est_rem}s remaining...",
+                            "#38bdf8"
+                        )
+                        root.update()
+
+            total_elapsed = time.time() - start_time
+            if cancel_splicing[0]:
+                set_status(f"🛑 Splicing stopped by user at {total_cuts_made}/{total_expected_cuts} cuts ({total_elapsed:.1f}s).", "#f59e0b")
+            else:
+                set_status(
+                    f"✓ Spliced {total_cuts_made} cuts across {len(zone_job_list)} zones in {total_elapsed:.1f}s (Smooth & responsive!).",
+                    "#10b981"
+                )
         except Exception as e:
-            set_status(f"Generation Error: {str(e)}", "#F44336")
+            set_status(f"Generation Error: {str(e)}", "#ef4444")
+        finally:
+            pb_progress['value'] = 0
+            pb_frame.pack_forget()
+            btn_generate.config(state="normal", text=orig_gen_text)
+            btn_preview.config(text=orig_prev_text, command=_preview, bg="#24242c", fg="#e2e8f0")
+            root.update()
     btn_generate.config(command=_generate)
 
     # Window close handler
