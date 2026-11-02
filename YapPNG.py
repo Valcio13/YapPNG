@@ -24,6 +24,7 @@ Author: Pair Programming with Antigravity
 
 import os
 import sys
+import time
 import json
 import math
 import struct
@@ -742,7 +743,12 @@ def run_app():
     lbl_status.pack(side="left", fill="x", expand=True)
 
     def set_status(msg, color="#10b981"):
-        print(f"[YapPNG] {msg}")
+        try:
+            # Safe print for Windows cmd/cp1252
+            safe_msg = msg.encode(sys.stdout.encoding or 'ascii', errors='replace').decode(sys.stdout.encoding or 'ascii')
+            print(f"[YapPNG] {safe_msg}")
+        except Exception:
+            pass
         lbl_status.config(text=msg, fg=color)
         if color == "#F44336" or color == "#ef4444":
             lbl_st_dot.config(fg="#ef4444")
@@ -1527,12 +1533,11 @@ def run_app():
     btn_preview.config(command=_preview)
 
     def _generate():
-        cancel_splicing[0] = False
-        start_time = time.time()
         orig_prev_text = "🔍  Preview Detection"
         orig_gen_text = "⚡  SPLICING TO TIMELINE"
-
         try:
+            cancel_splicing[0] = False
+            start_time = time.time()
             save_ui_to_config()
 
             # Switch UI into active processing mode
