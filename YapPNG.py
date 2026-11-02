@@ -500,42 +500,266 @@ def apply_clip_transform(clip, pan=0.0, tilt=0.0, zoom=1.0, flip_x=False, opacit
         print(f"[YapPNG] Warning applying clip transform: {e}")
 
 # ---------------------------------------------------------------------------
-# Universal Dark UI (Tkinter - Works in both Free & Studio)
+# Universal Modern Dark UI (DaVinci Studio Sleek Edition)
 # ---------------------------------------------------------------------------
+# Color Palette (DaVinci Studio Deep Dark)
+CLR_BG_ROOT = "#121214"         # Deep studio charcoal
+CLR_BG_CARD = "#1a1a1f"         # Lifted panel card
+CLR_BG_HEADER = "#212127"       # Card header strip
+CLR_BORDER_CARD = "#2a2a34"     # Subtle card border
+CLR_BG_INPUT = "#151518"        # Recessed field background
+CLR_BORDER_INPUT = "#343440"    # Input outline
+CLR_TEXT_HIGH = "#f8fafc"       # High contrast pure text
+CLR_TEXT_NORM = "#cbd5e1"       # Standard label text
+CLR_TEXT_MUTED = "#64748b"      # Muted/hint text
+CLR_ACCENT_BLUE = "#0070f3"     # Primary electric blue
+CLR_ACCENT_HOVER = "#0084ff"    # Primary hover
+CLR_ACCENT_ACTIVE = "#005bb5"   # Primary active
+CLR_ACCENT_GREEN = "#10b981"    # Calibration success green
+CLR_ACCENT_GREEN_HOV = "#059669"
+CLR_ACCENT_PURPLE = "#8b5cf6"   # Expressions accent
+CLR_ACCENT_CYAN = "#06b6d4"     # Placement accent
+CLR_ACCENT_AMBER = "#f59e0b"    # Audio / shout warning
+
+def create_btn(parent, text, command=None, kind="default", width=None, padx=10, pady=4, font=("Segoe UI", 9)):
+    if kind == "primary":
+        bg, bg_hover, bg_active = CLR_ACCENT_BLUE, CLR_ACCENT_HOVER, CLR_ACCENT_ACTIVE
+        fg = "#ffffff"
+        bd_clr = CLR_ACCENT_BLUE
+        font = ("Segoe UI", 10, "bold")
+    elif kind == "success":
+        bg, bg_hover, bg_active = CLR_ACCENT_GREEN, CLR_ACCENT_GREEN_HOV, "#047857"
+        fg = "#ffffff"
+        bd_clr = CLR_ACCENT_GREEN
+        font = ("Segoe UI", 9, "bold")
+    elif kind == "danger":
+        bg, bg_hover, bg_active = "#2d1618", "#451a1d", "#5c1d22"
+        fg = "#fca5a5"
+        bd_clr = "#5c1d22"
+    elif kind == "subtle_blue":
+        bg, bg_hover, bg_active = "#132338", "#1a3350", "#234368"
+        fg = "#38bdf8"
+        bd_clr = "#1e3a5f"
+        font = ("Segoe UI", 9, "bold")
+    elif kind == "secondary":
+        bg, bg_hover, bg_active = "#24242c", "#2f2f3a", "#3a3a48"
+        fg = "#e2e8f0"
+        bd_clr = "#383846"
+    else:  # default
+        bg, bg_hover, bg_active = "#222228", "#2d2d34", "#383842"
+        fg = "#cbd5e1"
+        bd_clr = "#32323c"
+
+    btn = tk.Button(
+        parent,
+        text=text,
+        command=command,
+        bg=bg,
+        fg=fg,
+        activebackground=bg_active,
+        activeforeground=fg,
+        relief="flat",
+        bd=0,
+        highlightthickness=1,
+        highlightbackground=bd_clr,
+        highlightcolor=bd_clr,
+        font=font,
+        cursor="hand2",
+        padx=padx,
+        pady=pady
+    )
+    if width:
+        btn.config(width=width)
+
+    def _on_enter(e):
+        btn.config(bg=bg_hover)
+    def _on_leave(e):
+        btn.config(bg=bg)
+    btn.bind("<Enter>", _on_enter)
+    btn.bind("<Leave>", _on_leave)
+    return btn
+
+def create_card(parent, title, icon="", accent_pip=CLR_ACCENT_BLUE, badge=None):
+    card = tk.Frame(parent, bg=CLR_BG_CARD, highlightthickness=1, highlightbackground=CLR_BORDER_CARD, bd=0)
+    card.pack(fill="x", padx=12, pady=5)
+
+    hdr = tk.Frame(card, bg=CLR_BG_HEADER, height=26)
+    hdr.pack(fill="x", side="top")
+
+    pip = tk.Frame(hdr, bg=accent_pip, width=3, height=13)
+    pip.pack(side="left", padx=(10, 6), pady=5)
+
+    title_text = f"{icon}  {title}" if icon else title
+    lbl = tk.Label(hdr, text=title_text, font=("Segoe UI", 9, "bold"), bg=CLR_BG_HEADER, fg=CLR_TEXT_HIGH)
+    lbl.pack(side="left", pady=4)
+
+    if badge:
+        b_frame = tk.Frame(hdr, bg="#121215", padx=6, pady=1, highlightthickness=1, highlightbackground="#2a2a34")
+        b_frame.pack(side="right", padx=10, pady=3)
+        b_lbl = tk.Label(b_frame, text=badge, font=("Segoe UI", 8), bg="#121215", fg="#94a3b8")
+        b_lbl.pack()
+
+    content = tk.Frame(card, bg=CLR_BG_CARD, padx=12, pady=8)
+    content.pack(fill="both", expand=True)
+    return card, content
+
 def run_app():
     cfg = load_config()
 
     root = tk.Tk()
     root.title("YapPNG v2.2 - Voice-Activated PNGtuber Animator")
-    root.geometry("620x820")
+    root.geometry("640x860")
     root.minsize(580, 720)
-    root.configure(bg="#1e1e1e")
+    root.configure(bg=CLR_BG_ROOT)
 
     if cfg.get("stay_on_top", True):
         root.attributes("-topmost", True)
 
-    # Dark Styling
+    # Windows 10 & 11 Dark Title Bar
+    try:
+        import ctypes
+        root.update()
+        hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+        DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        val = ctypes.c_int(2)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(val), ctypes.sizeof(val))
+    except Exception:
+        pass
+
+    # TTK Dark Styling
     style = ttk.Style()
     style.theme_use("clam")
-    style.configure(".", background="#1e1e1e", foreground="#dddddd", font=("Segoe UI", 9))
-    style.configure("TLabel", background="#1e1e1e", foreground="#dddddd")
-    style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), foreground="#00aaff")
-    style.configure("Section.TLabel", font=("Segoe UI", 9, "bold"), foreground="#ffffff")
-    style.configure("TButton", background="#2d2d2d", foreground="#ffffff", borderwidth=1, padding=4)
-    style.map("TButton", background=[("active", "#0e639c"), ("pressed", "#1177bb")])
-    style.configure("Action.TButton", background="#0e639c", foreground="#ffffff", font=("Segoe UI", 9, "bold"))
-    style.map("Action.TButton", background=[("active", "#1177bb")])
-    style.configure("TEntry", fieldbackground="#2b2b2b", foreground="#ffffff", insertcolor="#ffffff")
-    style.configure("TCombobox", fieldbackground="#2b2b2b", foreground="#ffffff")
-    style.configure("TSpinbox", fieldbackground="#2b2b2b", foreground="#ffffff")
-    style.configure("TCheckbutton", background="#1e1e1e", foreground="#dddddd")
-    style.map("TCheckbutton", background=[("active", "#1e1e1e")])
-    style.configure("Horizontal.TScale", background="#1e1e1e", troughcolor="#2b2b2b")
+    style.configure(".", background=CLR_BG_CARD, foreground=CLR_TEXT_NORM, font=("Segoe UI", 9))
+    style.configure("TLabel", background=CLR_BG_CARD, foreground=CLR_TEXT_NORM)
 
-    # Main Scrollable Frame Container
-    canvas = tk.Canvas(root, bg="#1e1e1e", highlightthickness=0)
+    style.configure("TCombobox",
+        fieldbackground=CLR_BG_INPUT,
+        background=CLR_BG_HEADER,
+        foreground="#ffffff",
+        bordercolor=CLR_BORDER_INPUT,
+        lightcolor=CLR_BORDER_INPUT,
+        darkcolor=CLR_BORDER_INPUT,
+        arrowcolor="#94a3b8",
+        padding=3
+    )
+    style.map("TCombobox",
+        fieldbackground=[("readonly", CLR_BG_INPUT)],
+        foreground=[("readonly", "#ffffff")]
+    )
+
+    style.configure("TEntry",
+        fieldbackground=CLR_BG_INPUT,
+        foreground="#ffffff",
+        bordercolor=CLR_BORDER_INPUT,
+        lightcolor=CLR_BORDER_INPUT,
+        darkcolor=CLR_BORDER_INPUT,
+        insertcolor="#38bdf8",
+        padding=3
+    )
+
+    style.configure("TSpinbox",
+        fieldbackground=CLR_BG_INPUT,
+        background=CLR_BG_HEADER,
+        foreground="#ffffff",
+        bordercolor=CLR_BORDER_INPUT,
+        lightcolor=CLR_BORDER_INPUT,
+        darkcolor=CLR_BORDER_INPUT,
+        arrowcolor="#94a3b8",
+        padding=2
+    )
+
+    style.configure("TCheckbutton",
+        background=CLR_BG_CARD,
+        foreground=CLR_TEXT_NORM,
+        indicatorbackground=CLR_BG_INPUT,
+        indicatorforeground=CLR_ACCENT_BLUE,
+        upperbordercolor=CLR_BORDER_INPUT,
+        lowerbordercolor=CLR_BORDER_INPUT
+    )
+    style.map("TCheckbutton",
+        background=[("active", CLR_BG_CARD)],
+        indicatorbackground=[("selected", CLR_ACCENT_BLUE), ("active", CLR_BG_HEADER)],
+        indicatorforeground=[("selected", "#ffffff")]
+    )
+
+    style.configure("Horizontal.TScale",
+        background=CLR_ACCENT_BLUE,
+        troughcolor=CLR_BG_INPUT,
+        bordercolor=CLR_BORDER_CARD,
+        lightcolor=CLR_ACCENT_BLUE,
+        darkcolor=CLR_ACCENT_BLUE,
+        sliderlength=18
+    )
+    style.map("Horizontal.TScale",
+        background=[("active", CLR_ACCENT_HOVER), ("pressed", CLR_ACCENT_ACTIVE)]
+    )
+
+    # 1. Pinned Header (Sticky at top)
+    header_frame = tk.Frame(root, bg="#16161b", highlightthickness=1, highlightbackground="#24242c", bd=0)
+    header_frame.pack(fill="x", side="top")
+
+    h_left = tk.Frame(header_frame, bg="#16161b")
+    h_left.pack(side="left", padx=14, pady=10)
+    tk.Label(h_left, text="🎙️ YapPNG", font=("Segoe UI", 12, "bold"), bg="#16161b", fg="#ffffff").pack(side="left")
+    tk.Label(h_left, text="v2.2", font=("Segoe UI", 9, "bold"), bg="#16161b", fg="#00aaff").pack(side="left", padx=(4, 8))
+
+    perf_text = "⚡ NumPy Accelerated" if HAVE_NUMPY else "Native Python Engine"
+    perf_badge = tk.Frame(h_left, bg="#0d2438", padx=6, pady=2, highlightthickness=1, highlightbackground="#0369a1")
+    perf_badge.pack(side="left")
+    tk.Label(perf_badge, text=perf_text, font=("Segoe UI", 8, "bold"), bg="#0d2438", fg="#38bdf8").pack()
+
+    h_right = tk.Frame(header_frame, bg="#16161b")
+    h_right.pack(side="right", padx=14, pady=10)
+    var_stay_on_top = tk.BooleanVar(value=bool(cfg.get("stay_on_top", True)))
+
+    def _toggle_on_top():
+        root.attributes("-topmost", var_stay_on_top.get())
+        cfg["stay_on_top"] = var_stay_on_top.get()
+        save_config(cfg)
+    ttk.Checkbutton(h_right, text="Stay on Top", variable=var_stay_on_top, command=_toggle_on_top).pack()
+
+    # 2. Pinned Footer (Sticky at bottom, Action Dock)
+    footer_frame = tk.Frame(root, bg="#16161b", highlightthickness=1, highlightbackground="#24242c", bd=0)
+    footer_frame.pack(fill="x", side="bottom")
+
+    # Status Pill inside footer
+    st_box = tk.Frame(footer_frame, bg="#121215", padx=8, pady=5, highlightthickness=1, highlightbackground="#25252e")
+    st_box.pack(fill="x", padx=12, pady=(8, 6))
+    lbl_st_dot = tk.Label(st_box, text="●", font=("Segoe UI", 8), bg="#121215", fg="#10b981")
+    lbl_st_dot.pack(side="left", padx=(2, 6))
+    lbl_status = tk.Label(
+        st_box,
+        text="Ready. Mark In/Out on timeline and click Splicing.",
+        font=("Segoe UI", 8),
+        bg="#121215",
+        fg="#94a3b8"
+    )
+    lbl_status.pack(side="left", fill="x", expand=True)
+
+    def set_status(msg, color="#10b981"):
+        print(f"[YapPNG] {msg}")
+        lbl_status.config(text=msg, fg=color)
+        if color == "#F44336" or color == "#ef4444":
+            lbl_st_dot.config(fg="#ef4444")
+        elif color == "#00aaff" or color == "#38bdf8":
+            lbl_st_dot.config(fg="#38bdf8")
+        else:
+            lbl_st_dot.config(fg="#10b981")
+
+    # Action Buttons Dock
+    btn_dock = tk.Frame(footer_frame, bg="#16161b")
+    btn_dock.pack(fill="x", padx=12, pady=(0, 10))
+
+    btn_preview = create_btn(btn_dock, "🔍  Preview Detection", kind="secondary", width=20, pady=7)
+    btn_preview.pack(side="left", padx=(0, 6))
+
+    btn_generate = create_btn(btn_dock, "⚡  SPLICING TO TIMELINE", kind="primary", pady=7)
+    btn_generate.pack(side="left", fill="x", expand=True)
+
+    # 3. Middle Scrollable Container
+    canvas = tk.Canvas(root, bg=CLR_BG_ROOT, highlightthickness=0)
     scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
-    scroll_frame = ttk.Frame(canvas)
+    scroll_frame = tk.Frame(canvas, bg=CLR_BG_ROOT)
 
     scroll_frame.bind(
         "<Configure>",
@@ -551,12 +775,12 @@ def run_app():
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
-    # Enable mousewheel scrolling
+    # Mousewheel scrolling
     def _on_mousewheel(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
     root.bind_all("<MouseWheel>", _on_mousewheel)
 
-    # UI Variables
+    # UI State Variables
     var_char_name = tk.StringVar(value=cfg.get("active_character", "Character_Host"))
     var_char_folder = tk.StringVar()
     var_expr_name = tk.StringVar(value="Neutral")
@@ -587,73 +811,51 @@ def run_app():
 
     var_range_mode = tk.StringVar(value="Mark In / Out Range")
     var_overwrite = tk.BooleanVar(value=True)
-    var_stay_on_top = tk.BooleanVar(value=bool(cfg.get("stay_on_top", True)))
 
-    # --- Header ---
-    perf_badge = "⚡ NumPy Accelerated" if HAVE_NUMPY else "Python Native"
-    header_frame = ttk.Frame(scroll_frame)
-    header_frame.pack(fill="x", padx=14, pady=(10, 6))
-    ttk.Label(header_frame, text="🎙️ YapPNG v2.2", style="Header.TLabel").pack(side="left")
-    ttk.Label(header_frame, text=perf_badge, foreground="#00aaff").pack(side="left", padx=10)
+    # ---------------- CARD 1: CHARACTER PROFILE ----------------
+    _, c1 = create_card(scroll_frame, "CHARACTER PROFILE", icon="👤", accent_pip=CLR_ACCENT_BLUE)
 
-    def _toggle_on_top():
-        root.attributes("-topmost", var_stay_on_top.get())
-        cfg["stay_on_top"] = var_stay_on_top.get()
-        save_config(cfg)
-    ttk.Checkbutton(header_frame, text="Stay on Top", variable=var_stay_on_top, command=_toggle_on_top).pack(side="right")
-
-    # Helper: Separator line
-    def add_separator():
-        sep = tk.Frame(scroll_frame, height=1, bg="#333333")
-        sep.pack(fill="x", padx=14, pady=6)
-
-    # ---------------- SECTION 1: CHARACTER PROFILE ----------------
-    f1 = ttk.LabelFrame(scroll_frame, text=" 1. Character Profile ", padding=8)
-    f1.pack(fill="x", padx=14, pady=4)
-
-    r1 = ttk.Frame(f1)
+    r1 = tk.Frame(c1, bg=CLR_BG_CARD)
     r1.pack(fill="x", pady=2)
-    ttk.Label(r1, text="Character:").pack(side="left")
-    char_combo = ttk.Combobox(r1, textvariable=var_char_name, state="readonly", width=22)
-    char_combo.pack(side="left", padx=6)
-    btn_new_char = ttk.Button(r1, text="+ New Char")
+    tk.Label(r1, text="Profile:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=8, anchor="w").pack(side="left")
+    char_combo = ttk.Combobox(r1, textvariable=var_char_name, state="readonly", width=20)
+    char_combo.pack(side="left", padx=(0, 6))
+    btn_new_char = create_btn(r1, "+ New Char", kind="secondary")
     btn_new_char.pack(side="left", padx=2)
-    btn_del_char = ttk.Button(r1, text="🗑 Del")
+    btn_del_char = create_btn(r1, "🗑 Del", kind="danger")
     btn_del_char.pack(side="left", padx=2)
 
-    r2 = ttk.Frame(f1)
+    r2 = tk.Frame(c1, bg=CLR_BG_CARD)
     r2.pack(fill="x", pady=(6, 2))
-    ttk.Label(r2, text="Folder:").pack(side="left")
-    ttk.Entry(r2, textvariable=var_char_folder).pack(side="left", fill="x", expand=True, padx=6)
+    tk.Label(r2, text="Folder:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=8, anchor="w").pack(side="left")
+    ttk.Entry(r2, textvariable=var_char_folder).pack(side="left", fill="x", expand=True, padx=(0, 6))
     def _browse_folder():
         d = filedialog.askdirectory(title="Select Character Folder")
         if d:
             var_char_folder.set(d)
             _scan_folder()
-    ttk.Button(r2, text="Browse...", command=_browse_folder).pack(side="left", padx=2)
-    btn_scan_folder = ttk.Button(r2, text="📂 Auto-Scan")
+    create_btn(r2, "Browse...", command=_browse_folder).pack(side="left", padx=2)
+    btn_scan_folder = create_btn(r2, "📂 Auto-Scan", kind="subtle_blue")
     btn_scan_folder.pack(side="left", padx=2)
 
-    # ---------------- SECTION 2: EXPRESSION SPRITES ----------------
-    f2 = ttk.LabelFrame(scroll_frame, text=" 2. Expression Sprites ", padding=8)
-    f2.pack(fill="x", padx=14, pady=4)
+    # ---------------- CARD 2: EXPRESSION SPRITES ----------------
+    _, c2 = create_card(scroll_frame, "EXPRESSION SPRITES", icon="🎭", accent_pip=CLR_ACCENT_PURPLE, badge="Multi-Expression")
 
-    er1 = ttk.Frame(f2)
+    er1 = tk.Frame(c2, bg=CLR_BG_CARD)
     er1.pack(fill="x", pady=2)
-    ttk.Label(er1, text="Expression:").pack(side="left")
-    expr_combo = ttk.Combobox(er1, textvariable=var_expr_name, state="readonly", width=22)
-    expr_combo.pack(side="left", padx=6)
-    btn_new_expr = ttk.Button(er1, text="+ New Expr")
+    tk.Label(er1, text="Expression:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=12, anchor="w").pack(side="left")
+    expr_combo = ttk.Combobox(er1, textvariable=var_expr_name, state="readonly", width=18)
+    expr_combo.pack(side="left", padx=(0, 6))
+    btn_new_expr = create_btn(er1, "+ New Expr", kind="secondary")
     btn_new_expr.pack(side="left", padx=2)
-    btn_del_expr = ttk.Button(er1, text="🗑 Del")
+    btn_del_expr = create_btn(er1, "🗑 Del", kind="danger")
     btn_del_expr.pack(side="left", padx=2)
 
-    # Sprite pickers
     def make_file_row(parent, label_text, str_var):
-        row = ttk.Frame(parent)
-        row.pack(fill="x", pady=2)
-        ttk.Label(row, text=label_text, width=16, anchor="w").pack(side="left")
-        ttk.Entry(row, textvariable=str_var).pack(side="left", fill="x", expand=True, padx=6)
+        row = tk.Frame(parent, bg=CLR_BG_CARD)
+        row.pack(fill="x", pady=3)
+        tk.Label(row, text=label_text, bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=14, anchor="w").pack(side="left")
+        ttk.Entry(row, textvariable=str_var).pack(side="left", fill="x", expand=True, padx=(0, 6))
         def _browse():
             f = filedialog.askopenfilename(
                 title=f"Select {label_text}",
@@ -662,59 +864,57 @@ def run_app():
             if f:
                 str_var.set(f)
                 save_ui_to_config()
-        ttk.Button(row, text="Browse...", command=_browse).pack(side="left")
+        create_btn(row, "Browse...", command=_browse).pack(side="left")
 
-    make_file_row(f2, "Idle (Closed):", var_idle_png)
-    make_file_row(f2, "Talk (Open):", var_talk_png)
-    make_file_row(f2, "Shout (Scream):", var_shout_png)
+    make_file_row(c2, "Idle (Closed):", var_idle_png)
+    make_file_row(c2, "Talk (Open):", var_talk_png)
+    make_file_row(c2, "Shout (Scream):", var_shout_png)
 
-    # ---------------- SECTION 3: PLACEMENT & DYNAMICS ----------------
-    f3 = ttk.LabelFrame(scroll_frame, text=" 3. Placement, Dynamics & Dimming ", padding=8)
-    f3.pack(fill="x", padx=14, pady=4)
+    # ---------------- CARD 3: PLACEMENT & DYNAMICS ----------------
+    _, c3 = create_card(scroll_frame, "PLACEMENT, DYNAMICS & DIMMING", icon="📐", accent_pip=CLR_ACCENT_CYAN)
 
-    pr1 = ttk.Frame(f3)
+    pr1 = tk.Frame(c3, bg=CLR_BG_CARD)
     pr1.pack(fill="x", pady=2)
-    ttk.Label(pr1, text="Preset:").pack(side="left")
+    tk.Label(pr1, text="Preset:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=8, anchor="w").pack(side="left")
     preset_combo = ttk.Combobox(pr1, textvariable=var_preset, values=list(PRESETS.keys()), state="readonly", width=14)
-    preset_combo.pack(side="left", padx=6)
-    btn_fetch = ttk.Button(pr1, text="📥 Fetch from Timeline Clip")
-    btn_fetch.pack(side="left", padx=6)
+    preset_combo.pack(side="left", padx=(0, 8))
+    btn_fetch = create_btn(pr1, "📥 Fetch from Timeline Clip", kind="subtle_blue")
+    btn_fetch.pack(side="left")
 
-    pr2 = ttk.Frame(f3)
-    pr2.pack(fill="x", pady=4)
-    ttk.Label(pr2, text="Pos X:").pack(side="left")
-    ttk.Entry(pr2, textvariable=var_pos_x, width=8).pack(side="left", padx=4)
-    ttk.Label(pr2, text="Pos Y:").pack(side="left", padx=(8, 0))
-    ttk.Entry(pr2, textvariable=var_pos_y, width=8).pack(side="left", padx=4)
-    ttk.Label(pr2, text="Zoom:").pack(side="left", padx=(8, 0))
-    ttk.Entry(pr2, textvariable=var_zoom, width=8).pack(side="left", padx=4)
-    ttk.Checkbutton(pr2, text="Flip Horizontal", variable=var_flip_x).pack(side="left", padx=(10, 0))
+    pr2 = tk.Frame(c3, bg=CLR_BG_CARD)
+    pr2.pack(fill="x", pady=(6, 2))
+    tk.Label(pr2, text="Pos X:", bg=CLR_BG_CARD, fg=CLR_TEXT_MUTED).pack(side="left")
+    ttk.Entry(pr2, textvariable=var_pos_x, width=7).pack(side="left", padx=(4, 10))
+    tk.Label(pr2, text="Pos Y:", bg=CLR_BG_CARD, fg=CLR_TEXT_MUTED).pack(side="left")
+    ttk.Entry(pr2, textvariable=var_pos_y, width=7).pack(side="left", padx=(4, 10))
+    tk.Label(pr2, text="Zoom:", bg=CLR_BG_CARD, fg=CLR_TEXT_MUTED).pack(side="left")
+    ttk.Entry(pr2, textvariable=var_zoom, width=7).pack(side="left", padx=(4, 10))
+    ttk.Checkbutton(pr2, text="Flip Horizontal", variable=var_flip_x).pack(side="left", padx=(6, 0))
 
-    pr3 = ttk.Frame(f3)
-    pr3.pack(fill="x", pady=2)
+    pr3 = tk.Frame(c3, bg=CLR_BG_CARD)
+    pr3.pack(fill="x", pady=(6, 2))
     ttk.Checkbutton(pr3, text="🦘 Bounce Hop", variable=var_bounce).pack(side="left")
-    ttk.Label(pr3, text="Hop (px):").pack(side="left", padx=(6, 2))
+    tk.Label(pr3, text="Hop (px):", bg=CLR_BG_CARD, fg=CLR_TEXT_MUTED).pack(side="left", padx=(8, 4))
     ttk.Spinbox(pr3, from_=4, to=50, textvariable=var_bounce_px, width=5).pack(side="left")
-    ttk.Checkbutton(pr3, text="💡 Inactive Dim", variable=var_dim).pack(side="left", padx=(14, 0))
-    ttk.Label(pr3, text="Dim (%):").pack(side="left", padx=(6, 2))
+    ttk.Checkbutton(pr3, text="💡 Inactive Dim", variable=var_dim).pack(side="left", padx=(16, 0))
+    tk.Label(pr3, text="Dim (%):", bg=CLR_BG_CARD, fg=CLR_TEXT_MUTED).pack(side="left", padx=(8, 4))
     ttk.Spinbox(pr3, from_=30, to=95, textvariable=var_dim_pct, width=5).pack(side="left")
 
-    # ---------------- SECTION 4: AUDIO & TRACK ROUTING ----------------
-    f4 = ttk.LabelFrame(scroll_frame, text=" 4. Audio & Track Routing ", padding=8)
-    f4.pack(fill="x", padx=14, pady=4)
+    # ---------------- CARD 4: AUDIO & TRACK ROUTING ----------------
+    _, c4 = create_card(scroll_frame, "AUDIO & TRACK ROUTING", icon="🎛️", accent_pip=CLR_ACCENT_AMBER)
 
-    ar1 = ttk.Frame(f4)
+    ar1 = tk.Frame(c4, bg=CLR_BG_CARD)
     ar1.pack(fill="x", pady=2)
-    ttk.Label(ar1, text="Audio Source:").pack(side="left")
+    tk.Label(ar1, text="Audio Source:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=12, anchor="w").pack(side="left")
     audio_src_combo = ttk.Combobox(ar1, textvariable=var_audio_src, values=["Timeline Audio Track", "Custom Audio File"], state="readonly", width=18)
-    audio_src_combo.pack(side="left", padx=6)
-    ttk.Label(ar1, text="Audio Track:").pack(side="left", padx=(8, 2))
+    audio_src_combo.pack(side="left", padx=(0, 10))
+    tk.Label(ar1, text="Audio Track:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM).pack(side="left", padx=(0, 4))
     ttk.Spinbox(ar1, from_=1, to=16, textvariable=var_audio_track, width=5).pack(side="left")
 
-    ar2 = ttk.Frame(f4)
-    ar2.pack(fill="x", pady=2)
-    ttk.Label(ar2, text="Or Audio File:", width=14, anchor="w").pack(side="left")
-    ttk.Entry(ar2, textvariable=var_audio_file).pack(side="left", fill="x", expand=True, padx=6)
+    ar2 = tk.Frame(c4, bg=CLR_BG_CARD)
+    ar2.pack(fill="x", pady=(6, 2))
+    tk.Label(ar2, text="Or Audio File:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=12, anchor="w").pack(side="left")
+    ttk.Entry(ar2, textvariable=var_audio_file).pack(side="left", fill="x", expand=True, padx=(0, 6))
     def _browse_audio():
         f = filedialog.askopenfilename(
             title="Select Audio File",
@@ -722,64 +922,72 @@ def run_app():
         )
         if f:
             var_audio_file.set(f)
-    ttk.Button(ar2, text="Browse...", command=_browse_audio).pack(side="left")
+    create_btn(ar2, "Browse...", command=_browse_audio).pack(side="left")
 
-    ar3 = ttk.Frame(f4)
-    ar3.pack(fill="x", pady=2)
-    ttk.Label(ar3, text="Idle Video Track:").pack(side="left")
-    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_base_track, width=5).pack(side="left", padx=6)
-    ttk.Label(ar3, text="Talk Video Track:").pack(side="left", padx=(12, 0))
-    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_talk_track, width=5).pack(side="left", padx=6)
+    ar3 = tk.Frame(c4, bg=CLR_BG_CARD)
+    ar3.pack(fill="x", pady=(6, 2))
+    tk.Label(ar3, text="Idle Video Track:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM).pack(side="left")
+    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_base_track, width=5).pack(side="left", padx=(4, 14))
+    tk.Label(ar3, text="Talk Video Track:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM).pack(side="left")
+    ttk.Spinbox(ar3, from_=1, to=24, textvariable=var_talk_track, width=5).pack(side="left", padx=(4, 0))
 
-    # ---------------- SECTION 5: SENSITIVITY & SHOUT DETECTION ----------------
-    f5 = ttk.LabelFrame(scroll_frame, text=" 5. Voice & Shouting Detection ", padding=8)
-    f5.pack(fill="x", padx=14, pady=4)
+    # ---------------- CARD 5: VOICE & SHOUTING DETECTION ----------------
+    _, c5 = create_card(scroll_frame, "VOICE & SHOUTING DETECTION", icon="🎙️", accent_pip=CLR_ACCENT_GREEN)
 
-    sr1 = ttk.Frame(f5)
+    sr1 = tk.Frame(c5, bg=CLR_BG_CARD)
     sr1.pack(fill="x", pady=2)
-    lbl_thresh_val = ttk.Label(sr1, text="-30 dB", width=8)
-    ttk.Label(sr1, text="Threshold:").pack(side="left")
+    tk.Label(sr1, text="Threshold:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=10, anchor="w").pack(side="left")
     scale_thresh = ttk.Scale(sr1, from_=10, to=60, variable=var_thresh, orient="horizontal")
-    scale_thresh.pack(side="left", fill="x", expand=True, padx=8)
-    lbl_thresh_val.pack(side="left")
-    btn_calibrate = ttk.Button(sr1, text="🎙️ Auto-Calibrate")
-    btn_calibrate.pack(side="left", padx=4)
+    scale_thresh.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+    badge_thresh = tk.Frame(sr1, bg="#101014", padx=6, pady=2, highlightthickness=1, highlightbackground="#2a2a34")
+    badge_thresh.pack(side="left", padx=(0, 8))
+    lbl_thresh_val = tk.Label(badge_thresh, text="-30 dB", font=("Segoe UI", 8, "bold"), bg="#101014", fg="#38bdf8", width=7)
+    lbl_thresh_val.pack()
+
+    btn_calibrate = create_btn(sr1, "🎙️ Auto-Calibrate", kind="success")
+    btn_calibrate.pack(side="left")
 
     def _update_thresh_lbl(*args):
         lbl_thresh_val.config(text=f"-{var_thresh.get()} dB")
     var_thresh.trace_add("write", _update_thresh_lbl)
 
-    sr2 = ttk.Frame(f5)
-    sr2.pack(fill="x", pady=2)
-    lbl_shout_val = ttk.Label(sr2, text="-12 dB", width=8)
-    ttk.Checkbutton(sr2, text="📢 Shouting Trigger:", variable=var_enable_shout).pack(side="left")
+    sr2 = tk.Frame(c5, bg=CLR_BG_CARD)
+    sr2.pack(fill="x", pady=(6, 2))
+    ttk.Checkbutton(sr2, text="📢 Shout Trigger:", variable=var_enable_shout).pack(side="left", padx=(0, 8))
     scale_shout = ttk.Scale(sr2, from_=6, to=24, variable=var_shout_thresh, orient="horizontal")
-    scale_shout.pack(side="left", fill="x", expand=True, padx=8)
-    lbl_shout_val.pack(side="left")
+    scale_shout.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+    badge_shout = tk.Frame(sr2, bg="#101014", padx=6, pady=2, highlightthickness=1, highlightbackground="#2a2a34")
+    badge_shout.pack(side="left")
+    lbl_shout_val = tk.Label(badge_shout, text="-12 dB", font=("Segoe UI", 8, "bold"), bg="#101014", fg="#f59e0b", width=7)
+    lbl_shout_val.pack()
 
     def _update_shout_lbl(*args):
         lbl_shout_val.config(text=f"-{var_shout_thresh.get()} dB")
     var_shout_thresh.trace_add("write", _update_shout_lbl)
 
-    sr3 = ttk.Frame(f5)
-    sr3.pack(fill="x", pady=2)
-    lbl_hold_val = ttk.Label(sr3, text="120 ms", width=8)
-    ttk.Label(sr3, text="Mouth Hold:").pack(side="left")
+    sr3 = tk.Frame(c5, bg=CLR_BG_CARD)
+    sr3.pack(fill="x", pady=(6, 2))
+    tk.Label(sr3, text="Mouth Hold:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM, width=12, anchor="w").pack(side="left")
     scale_hold = ttk.Scale(sr3, from_=30, to=350, variable=var_hold_ms, orient="horizontal")
-    scale_hold.pack(side="left", fill="x", expand=True, padx=8)
-    lbl_hold_val.pack(side="left")
+    scale_hold.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+    badge_hold = tk.Frame(sr3, bg="#101014", padx=6, pady=2, highlightthickness=1, highlightbackground="#2a2a34")
+    badge_hold.pack(side="left")
+    lbl_hold_val = tk.Label(badge_hold, text="120 ms", font=("Segoe UI", 8, "bold"), bg="#101014", fg="#a855f7", width=7)
+    lbl_hold_val.pack()
 
     def _update_hold_lbl(*args):
         lbl_hold_val.config(text=f"{var_hold_ms.get()} ms")
     var_hold_ms.trace_add("write", _update_hold_lbl)
 
-    # ---------------- SECTION 6: ACTIONS & STATUS ----------------
-    f6 = ttk.LabelFrame(scroll_frame, text=" 6. Timeline Splicing ", padding=8)
-    f6.pack(fill="x", padx=14, pady=4)
+    # ---------------- CARD 6: TIMELINE OPTIONS ----------------
+    _, c6 = create_card(scroll_frame, "TIMELINE SPLICING OPTIONS", icon="⚙️", accent_pip="#6366f1")
 
-    act_r1 = ttk.Frame(f6)
+    act_r1 = tk.Frame(c6, bg=CLR_BG_CARD)
     act_r1.pack(fill="x", pady=2)
-    ttk.Label(act_r1, text="Mode:").pack(side="left")
+    tk.Label(act_r1, text="Range Mode:", bg=CLR_BG_CARD, fg=CLR_TEXT_NORM).pack(side="left", padx=(0, 6))
     range_combo = ttk.Combobox(
         act_r1,
         textvariable=var_range_mode,
@@ -787,33 +995,8 @@ def run_app():
         state="readonly",
         width=26
     )
-    range_combo.pack(side="left", padx=6)
-    ttk.Checkbutton(act_r1, text="🧹 Clean Overwrite", variable=var_overwrite).pack(side="left", padx=8)
-
-    act_r2 = ttk.Frame(f6)
-    act_r2.pack(fill="x", pady=(8, 2))
-    btn_preview = ttk.Button(act_r2, text="🔍 Test / Preview Detection")
-    btn_preview.pack(side="left", fill="x", expand=True, padx=3)
-    btn_generate = ttk.Button(act_r2, text="▶ Splicing To Timeline", style="Action.TButton")
-    btn_generate.pack(side="left", fill="x", expand=True, padx=3)
-
-    # Status Label
-    lbl_status = tk.Label(
-        scroll_frame,
-        text="Ready. Select character, set In/Out marks on timeline, and click Splicing.",
-        bg="#252526",
-        fg="#aaaaaa",
-        relief="groove",
-        padx=10,
-        pady=8,
-        wraplength=540,
-        justify="left"
-    )
-    lbl_status.pack(fill="x", padx=14, pady=(8, 14))
-
-    def set_status(msg, color="#ffffff"):
-        print(f"[YapPNG] {msg}")
-        lbl_status.config(text=msg, fg=color)
+    range_combo.pack(side="left", padx=(0, 12))
+    ttk.Checkbutton(act_r1, text="🧹 Clean Overwrite in Range", variable=var_overwrite).pack(side="left")
 
     # --- Data Binding Logic ---
     def get_cur_char_data():
