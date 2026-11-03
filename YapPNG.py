@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 =============================================================================
-YapPNG for DaVinci Resolve (v2.2 Ultra - Universal Free & Studio Edition)
+YapPNG for DaVinci Resolve (v1.0.0 - Universal Free & Studio Edition)
 - Universal Dark GUI (Works on both Free & Studio, bypasses UIManager lock)
 - Vectorized VAD Engine (NumPy Prefix-Sum + Array Fallback)
 - Single-Pass Audio Decoding & In-Memory Slicing
@@ -634,7 +634,7 @@ def run_app():
     cfg = load_config()
 
     root = tk.Tk()
-    root.title("YapPNG v2.2 - Voice-Activated PNGtuber Animator")
+    root.title("YapPNG v1.0.0 - Voice-Activated PNGtuber Animator")
     root.geometry("640x860")
     root.minsize(580, 720)
     root.configure(bg=CLR_BG_ROOT)
@@ -728,7 +728,7 @@ def run_app():
     h_left = tk.Frame(header_frame, bg="#16161b")
     h_left.pack(side="left", padx=14, pady=10)
     tk.Label(h_left, text="🎙️ YapPNG", font=("Segoe UI", 12, "bold"), bg="#16161b", fg="#ffffff").pack(side="left")
-    tk.Label(h_left, text="v2.2", font=("Segoe UI", 9, "bold"), bg="#16161b", fg="#00aaff").pack(side="left", padx=(4, 8))
+    tk.Label(h_left, text="v1.0.0", font=("Segoe UI", 9, "bold"), bg="#16161b", fg="#00aaff").pack(side="left", padx=(4, 8))
 
     perf_text = "⚡ NumPy Accelerated" if HAVE_NUMPY else "Native Python Engine"
     perf_badge = tk.Frame(h_left, bg="#0d2438", padx=6, pady=2, highlightthickness=1, highlightbackground="#0369a1")

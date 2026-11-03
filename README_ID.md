@@ -73,7 +73,7 @@ Buka project Resolve lu, terus pilih menu:
 
 ```text
 YapPNG/
-├── YapPNG.py                   # Script utama plugin DaVinci Resolve (v2.2 Ultra)
+├── YapPNG.py                   # Script utama plugin DaVinci Resolve (v1.0.0)
 ├── install_plugin.bat          # Installer otomatis buat Windows
 ├── docs/
 │   ├── ARCHITECTURE.md         # Penjelasan teknis & matematika VAD (English)

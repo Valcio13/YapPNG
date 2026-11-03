@@ -72,7 +72,7 @@ Open any project in DaVinci Resolve, then go to:
 
 ```text
 YapPNG/
-├── YapPNG.py                   # Main DaVinci Resolve Plugin script (v2.2 Ultra)
+├── YapPNG.py                   # Main DaVinci Resolve Plugin script (v1.0.0)
 ├── install_plugin.bat          # One-click Windows installer
 ├── docs/
 │   ├── ARCHITECTURE.md         # Technical architecture & VAD math
