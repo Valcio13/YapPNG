@@ -20,3 +20,6 @@ Thumbs.db
 *.bak
 *.tmp
 *.log
+
+# Release Archives
+*.zip
