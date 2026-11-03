@@ -15,7 +15,7 @@
 
 ## ✨ Features at a Glance
 
-* 🎛️ **Runs Natively Inside Resolve:** Launches right from `Workspace > Scripts > Edit > YapPNG` using Resolve's built-in Qt `UIManager`. Compatible with **DaVinci Resolve Free & Studio**.
+* 🎛️ **Runs Natively Inside Resolve:** Launches right from `Workspace > Scripts > Edit > YapPNG` with a modern dark Inspector GUI. 100% compatible with both **DaVinci Resolve Free & Studio (18, 19, 21+)**.
 * ⚡ **Ultra-Fast Vectorized VAD:** Analyzes 5 minutes of speech in **~27 milliseconds** using NumPy prefix-sum energy calculation (with pure-Python fallback).
 * 👥 **Multi-Character Podcasting:** Independent audio & video track routing per character (e.g. Host on A1/V2/V3, Guest on A2/V4/V5).
 * 📂 **Folder Auto-Scanner:** Point to your character's folder and click **`📂 Auto-Scan`** to automatically discover all expressions (`idle`, `talk`, `shout`).
